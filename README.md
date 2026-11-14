@@ -59,6 +59,30 @@ Outputs in `outputs/<date>/`:
 - `<region>.png`: per-region map with numbered zones
 - `zones.csv`, `zones.geojson`: one row/point per zone (region, lat, lon, area_km2, sst, chl)
 
+## Example output (2026-10-08)
+
+All of India: SST with fronts outlined (left), chlorophyll-a (middle), and pixels that are both a front and productive water (right).
+
+![SST fronts, chlorophyll and PFZ mask for India](docs/images/check_2026-10-08.png)
+
+Gujarat: the largest zone follows the cold upwelling front along the Saurashtra coast and the Gulf of Kutch. Black hatched areas are zones (numbered), green lines enclose chlorophyll ≥ 0.3 mg/m³.
+
+![Gujarat PFZ map](docs/images/gujarat_2026-10-08.png)
+
+Odisha & West Bengal: zones on the shelf off the Hooghly and Subarnarekha river mouths.
+
+![Odisha and West Bengal PFZ map](docs/images/odisha_west_bengal_2026-10-08.png)
+
+Largest zones that day, from `zones.csv`:
+
+| id | region | lat | lon | area_km2 | sst (°C) | chl (mg/m³) |
+|---|---|---|---|---|---|---|
+| 77 | Gujarat | 22.508 | 68.778 | 13938.8 | 28.75 | 2.575 |
+| 52 | Andhra Pradesh | 18.522 | 84.799 | 6895.0 | 29.84 | 0.496 |
+| 24 | Andhra Pradesh | 15.049 | 81.209 | 4643.2 | 30.86 | 0.536 |
+| 11 | Andhra Pradesh | 13.567 | 80.923 | 3830.7 | 30.42 | 0.488 |
+| 27 | Andhra Pradesh | 15.436 | 80.421 | 2919.4 | 30.50 | 0.841 |
+
 ## Status
 
 Phases 1–3 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.

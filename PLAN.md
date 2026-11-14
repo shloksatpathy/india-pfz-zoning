@@ -91,6 +91,65 @@ Past INCOIS advisories could not be downloaded (no archive on the website; erdda
 - Chosen: `GRAD_MIN = 0.05`, `MIN_PIXELS = 50` (~240 km²). About 80 zones per date, with zones still in every region. Stronger gradient cutoffs empty Lakshadweep and Andaman & Nicobar.
 - Still to do: compare against INCOIS advisories once some are available.
 
+## Step 6: Application interface
+
+Goal: a map people can open in a browser (phone or desktop) to see the latest zones for their coast, without installing Python.
+
+### Users
+
+- **Fishers and cooperatives:** phone, weak signal. Need "where, how far, which direction, how deep" from their harbour.
+- **Fisheries officers and researchers:** desktop. Need past dates, all regions, and downloadable data.
+
+### Approach: static site, no backend
+
+The pipeline already writes files per date, so the interface is a static page that reads them. It can be hosted free on GitHub Pages and updated by a scheduled job.
+
+```
+run.py (date range) ──> outputs/<date>/zones.geojson, sst.png, chl.png
+                        outputs/index.json (dates + zone counts)
+site.py ──> docs/site/  (copies latest N weeks of outputs + web/index.html)
+GitHub Pages serves docs/site/
+```
+
+### 6.1 Batch runner (`run.py`)
+
+- `uv run run.py 2026-09-03 2026-10-08` runs `fetch` + `pfz` for each weekly chlorophyll date in the range.
+- Writes `outputs/index.json`: list of dates with zone counts per region.
+
+### 6.2 Richer zone data (`pfz.py`)
+
+- **Polygons:** export each zone's outline (traced from the label mask with matplotlib `contour`) as a GeoJSON Polygon instead of only the centroid point.
+- **Depth:** sample ETOPO1 bathymetry (`etopo180` on the same ERDDAP server) at each zone centroid; add `depth_m`.
+- **Advisory text:** for each zone, the nearest fishing harbour, compass bearing (16-point) and distance in km, e.g. "Veraval: SW, 45 km, depth 60 m". This mirrors the INCOIS advisory format.
+- **Harbours:** `harbours.py` with name and coordinates of the major fishing harbours per region. Coordinates to be compiled from a cited source (e.g. Department of Fisheries harbour list, OpenStreetMap).
+
+### 6.3 Map overlays
+
+- Save SST and chlorophyll as plain georeferenced PNGs (no axes, transparent land) with their lat/lon bounds, for use as map overlays.
+
+### 6.4 Web page (`web/index.html`)
+
+Single HTML file using Leaflet (from cdnjs) and OpenStreetMap tiles.
+
+- **Date picker:** dates from `index.json`; defaults to the latest.
+- **Region picker:** zooms to the region box and filters the zone list.
+- **Layers:** zone polygons (coloured by chlorophyll), optional SST and chlorophyll overlays, EEZ boundary.
+- **Zone popup / list:** advisory text, area, SST, chlorophyll, depth.
+- **Download:** links to that date's `zones.csv` and `zones.geojson`.
+- **Phone first:** list view under the map, large tap targets, total page data under ~1 MB per date.
+
+### 6.5 Publishing (`site.py` + GitHub Actions)
+
+- `site.py` copies the latest 8 weeks of outputs and `web/index.html` into `docs/site/`.
+- GitHub Pages serves `docs/site/`.
+- A weekly GitHub Actions workflow runs `run.py` for the newest chlorophyll week, then `site.py`, and commits the result.
+
+### Not in the first version
+
+- Regional languages (Gujarati, Marathi, Malayalam, Tamil, Telugu, Odia, Bengali).
+- SMS / WhatsApp push alerts.
+- User accounts or saved harbours.
+
 ## Known limitations
 
 - **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
@@ -104,3 +163,7 @@ Past INCOIS advisories could not be downloaded (no archive on the website; erdda
 2. `pfz.py` front detection and chlorophyll mask; plot to check visually.
 3. Zone labelling and CSV / GeoJSON / PNG outputs.
 4. Validation against INCOIS advisories and threshold tuning.
+5. `run.py` batch runner and `index.json`.
+6. Zone polygons, depth, harbour bearing/distance advisory text.
+7. `web/index.html` map page reading local outputs.
+8. `site.py`, GitHub Pages, weekly GitHub Actions update.
