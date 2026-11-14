@@ -33,19 +33,33 @@ Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.n
 | Odisha & West Bengal | East |
 | Andaman & Nicobar | Bay of Bengal islands |
 
-## Planned layout
+## Layout
 
 ```
 india-pfz-zoning/
 ├── regions.py     # coastal region bounding boxes
 ├── fetch.py       # download SST and chlorophyll from ERDDAP
 ├── pfz.py         # front detection + chlorophyll filter -> zones
-└── outputs/       # maps (PNG) and zones (GeoJSON)
+└── outputs/       # per-date maps (PNG), zones.csv, zones.geojson
 ```
+
+## Usage
+
+```
+uv run fetch.py 2026-10-08
+uv run pfz.py 2026-10-08
+```
+
+The date must be covered by both datasets (chlorophyll lags SST by a few weeks).
+
+Outputs in `outputs/<date>/`:
+- `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
+- `<region>.png`: per-region map with numbered zones
+- `zones.csv`, `zones.geojson`: one row/point per zone (region, lat, lon, area_km2, sst, chl)
 
 ## Status
 
-Work in progress. Code is not added yet.
+Phases 1–3 of [PLAN.md](PLAN.md) done. Next: validation against INCOIS advisories and threshold tuning.
 
 ## References
 
