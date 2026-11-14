@@ -16,9 +16,9 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 | Variable | ERDDAP dataset | Resolution | Cadence |
 |---|---|---|---|
 | SST | `jplMURSST41` (MUR SST v4.1) | 0.01° | Daily |
-| Chlorophyll-a | `nesdisVHNSQchlaWeekly` (VIIRS SNPP) | ~0.0375° | Weekly |
+| Chlorophyll-a | `noaacwNPPVIIRSSQchlaWeekly` (VIIRS SNPP) | ~0.0375° | Weekly |
 
-Server: https://coastwatch.pfeg.noaa.gov/erddap/ (no login required)
+Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
 ## Coastal regions
 
