@@ -20,6 +20,8 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
+Zones are clipped to India's EEZ (`india_eez.geojson`, outer boundaries of the mainland + Lakshadweep and Andaman & Nicobar EEZs) from [Marine Regions](https://www.marineregions.org), licensed CC-BY 4.0.
+
 ## Coastal regions
 
 | Region | Coast |
@@ -59,7 +61,7 @@ Outputs in `outputs/<date>/`:
 
 ## Status
 
-Phases 1–3 of [PLAN.md](PLAN.md) done. Next: validation against INCOIS advisories and threshold tuning.
+Phases 1–3 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
 
 ## References
 

@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.path import Path as Polygon
 import numpy as np
 import xarray as xr
 from scipy import ndimage
@@ -16,7 +17,7 @@ from regions import REGIONS
 GRAD_MIN = 0.05  # °C/km, SST front threshold
 CHL_MIN = 0.3  # mg/m³, productive water threshold
 DILATE = 2  # pixels, joins nearby front pixels into one zone
-MIN_PIXELS = 20  # zones smaller than this are dropped
+MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
 KM_PER_DEG = 111.32
 
 
@@ -35,8 +36,18 @@ def sst_gradient(sst):
     return sst.copy(data=np.hypot(gx, gy))
 
 
-def label_zones(pfz, land):
-    mask = ndimage.binary_dilation(pfz.values, iterations=DILATE) & ~land.values
+def eez_mask(sst):
+    geom = json.load(open("india_eez.geojson"))["geometry"]
+    lon, lat = np.meshgrid(sst.longitude.values, sst.latitude.values)
+    points = np.column_stack([lon.ravel(), lat.ravel()])
+    inside = np.zeros(len(points), dtype=bool)
+    for polygon in geom["coordinates"]:
+        inside |= Polygon(polygon[0]).contains_points(points)
+    return sst.copy(data=inside.reshape(lon.shape))
+
+
+def label_zones(pfz, ocean):
+    mask = ndimage.binary_dilation(pfz.values, iterations=DILATE) & ocean.values
     labels, n = ndimage.label(mask)
     sizes = ndimage.sum(mask, labels, range(1, n + 1))
     keep = np.flatnonzero(sizes >= MIN_PIXELS) + 1
@@ -150,10 +161,10 @@ def run(date):
     out.mkdir(parents=True, exist_ok=True)
 
     sst, chl = load(date)
-    land = sst.isnull()
+    ocean = sst.notnull() & eez_mask(sst)
     grad = sst_gradient(sst)
-    pfz = (grad >= GRAD_MIN) & (chl >= CHL_MIN)
-    labels, ids = label_zones(pfz, land)
+    pfz = (grad >= GRAD_MIN) & (chl >= CHL_MIN) & ocean
+    labels, ids = label_zones(pfz, ocean)
     zones = describe_zones(sst, chl, pfz, labels, ids)
 
     plot_check(out, date, sst, grad, chl, pfz)

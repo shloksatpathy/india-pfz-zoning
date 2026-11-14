@@ -74,11 +74,28 @@ Full download box: 6.0 – 24.5 °N, 66.0 – 94.5 °E.
 - Compare a few dates against INCOIS PFZ advisories (https://incois.gov.in) for the same region.
 - Tune the gradient and chlorophyll thresholds so zone counts and locations are roughly in line.
 
+### Tuning pass 1 (no INCOIS data)
+
+Past INCOIS advisories could not be downloaded (no archive on the website; erddap.incois.gov.in unreachable from outside India), so the first pass only reduces noise.
+
+- Zones are clipped to India's EEZ before labelling, which removes zones in Sri Lankan and Pakistani waters.
+- Sweep over two dates, zone counts:
+
+| Date | grad °C/km | min px | Zones |
+|---|---|---|---|
+| 2026-10-01 | 0.05 | 20 / 50 / 100 | 182 / 81 / 31 |
+| 2026-10-01 | 0.07 | 20 / 50 / 100 | 96 / 40 / 23 |
+| 2026-10-08 | 0.05 | 20 / 50 / 100 | 174 / 83 / 45 |
+| 2026-10-08 | 0.07 | 20 / 50 / 100 | 92 / 38 / 13 |
+
+- Chosen: `GRAD_MIN = 0.05`, `MIN_PIXELS = 50` (~240 km²). About 80 zones per date, with zones still in every region. Stronger gradient cutoffs empty Lakshadweep and Andaman & Nicobar.
+- Still to do: compare against INCOIS advisories once some are available.
+
 ## Known limitations
 
 - **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
 - **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs for these dates are still produced, but are not actionable.
-- **Box overlaps:** regions are simple rectangles, not EEZ polygons; a zone is assigned to the first box containing its centroid.
+- **Region boxes:** zones are clipped to the EEZ, but region labels still come from rectangles; a zone is assigned to the first box containing its centroid.
 - **Chlorophyll lag:** a weekly composite is paired with a daily SST, so the two layers can be a few days apart.
 
 ## Milestones
