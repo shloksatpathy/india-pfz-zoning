@@ -1,169 +1,97 @@
-# Implementation Plan
+# Plan
 
-Goal: for a given date, produce Potential Fishing Zones (PFZ) for each Indian coastal region from satellite SST and chlorophyll-a, and export maps plus a zone list.
+Goal: Potential Fishing Zones (PFZ) for India's coastal regions from satellite SST and chlorophyll-a, published as a weekly web map.
 
-## Pipeline
+## Current system (phase 1, done)
 
 ```
-date ──> fetch.py ──> data/sst_<date>.nc, data/chl_<date>.nc
-                         │
-                         v
-                      pfz.py ──> fronts (SST gradient)
-                         │       ∩ productive water (chl threshold)
-                         │       -> labelled zones per region
-                         v
-             outputs/<date>/<region>.png, zones.csv, zones.geojson
+run.py (weekly chl dates) ──> fetch.py ──> data/sst_<date>.nc, chl_<date>.nc, etopo.nc
+                                 │
+                                 v
+                              pfz.py ──> outputs/<date>/zones.csv, zones.geojson,
+                                 │       sst.png, chl.png, check.png, <region>.png
+                                 v
+                   outputs/index.json ──> site.py ──> docs/site/ ──> GitHub Pages
 ```
-
-## Files
 
 | File | Purpose |
 |---|---|
-| `regions.py` | Dict of region name -> (lat_min, lat_max, lon_min, lon_max) |
-| `fetch.py` | Download SST and chlorophyll NetCDF subsets from ERDDAP for one date |
-| `pfz.py` | Load data, detect fronts, apply chlorophyll filter, label zones, write outputs |
-| `pyproject.toml` | Dependencies via `uv`: numpy, xarray, netCDF4, scipy, matplotlib |
+| `regions.py` | Region bounding boxes and the full download box (6.0 – 24.5 °N, 66.0 – 94.5 °E) |
+| `fetch.py` | MUR SST (`jplMURSST41`, daily, stride 2), VIIRS chlorophyll (`noaacwNPPVIIRSSQchlaWeekly`), ETOPO1 depth |
+| `pfz.py` | Fronts ∩ productive water, clipped to EEZ, labelled into zones with polygon, depth and nearest-harbour advisory text |
+| `harbours.py` | 54 fishing harbours: DoF Handbook 2020 names, OpenStreetMap coordinates |
+| `run.py` | Batch over weekly chlorophyll dates (`last last` for the newest), writes `index.json` |
+| `site.py` | Keeps the latest 8 weeks in `docs/site/` with `web/index.html` and the EEZ |
+| `.github/workflows/weekly.yml` | Tuesdays: newest week, rebuild site, commit, deploy to Pages |
 
-## Step 1: Regions (`regions.py`)
+Current parameters (`pfz.py`):
 
-Approximate bounding boxes (covering the coast out to roughly the EEZ):
-
-| Region | Lat (°N) | Lon (°E) |
+| Parameter | Value | Note |
 |---|---|---|
-| Gujarat | 20.0 – 24.5 | 66.0 – 73.0 |
-| Maharashtra & Goa | 14.8 – 20.0 | 70.5 – 74.0 |
-| Karnataka & Kerala | 8.0 – 14.8 | 74.0 – 77.5 |
-| Lakshadweep | 8.0 – 12.5 | 71.0 – 74.0 |
-| Tamil Nadu & Puducherry | 8.0 – 13.5 | 77.5 – 81.5 |
-| Andhra Pradesh | 13.5 – 19.2 | 79.5 – 85.0 |
-| Odisha & West Bengal | 19.2 – 22.5 | 84.5 – 89.0 |
-| Andaman & Nicobar | 6.0 – 14.0 | 91.5 – 94.5 |
+| `GRAD_MIN` | 0.05 °C/km | 0.07 empties Lakshadweep and Andaman & Nicobar |
+| `CHL_MIN` | 0.3 mg/m³ | one value for all regions |
+| `DILATE` | 2 px | joins nearby front pixels |
+| `MIN_PIXELS` | 50 (~240 km²) | ~80 zones per date |
 
-Full download box: 6.0 – 24.5 °N, 66.0 – 94.5 °E.
+Zone counts so far: 2026-09-03: 64, 2026-09-24: 25, 2026-10-01: 81, 2026-10-08: 83.
 
-## Step 2: Fetch (`fetch.py`)
+## Phase 2: Validation and better zones
 
-- Servers: `https://coastwatch.pfeg.noaa.gov/erddap/griddap/` (SST), `https://coastwatch.noaa.gov/erddap/griddap/` (chlorophyll)
-- Chlorophyll lags SST by several weeks; the date must fall within both datasets' time coverage.
-- SST: `jplMURSST41`, variable `analysed_sst` (°C), dims `[time][latitude][longitude]`, 0.01° daily. Request the full box with stride 2 (~0.02°, ~5 MB).
-- Chlorophyll: `noaacwNPPVIIRSSQchlaWeekly`, variable `chlor_a` (mg/m³), dims `[time][altitude][latitude][longitude]`, ~0.0375° weekly. Pick the weekly composite closest to the requested date.
-- Use ERDDAP's `.nc` output with `(value)` index syntax, e.g.
-  `jplMURSST41.nc?analysed_sst[(2026-11-12)][(6.0):2:(24.5)][(66.0):2:(94.5)]`
-- Save to `data/`. Skip download if the file already exists.
-- CLI: `uv run fetch.py 2026-11-12`
+### Step 1: Archive INCOIS advisories
 
-## Step 3: Zones (`pfz.py`)
+INCOIS has no archive of past advisories, so collect the live ones from now on.
 
-1. Open both files with xarray; sort by latitude; squeeze `time`/`altitude`.
-2. Regrid chlorophyll onto the SST grid (`interp_like`, nearest).
-3. **Fronts:** SST gradient magnitude in °C/km using `np.gradient` with grid spacing converted to km (lon spacing scaled by cos(lat)). Front pixel = gradient above threshold (start at 0.05 °C/km, tune).
-4. **Productive water:** `chlor_a` above threshold (start at 0.3 mg/m³, tune per region later).
-5. **PFZ mask** = front AND productive. Land and cloud pixels are NaN and drop out.
-6. Dilate mask slightly (`scipy.ndimage.binary_dilation`) so fronts next to high-chl water connect, then label blobs (`scipy.ndimage.label`) and drop blobs below a minimum size (e.g. 20 pixels).
-7. For each blob: centroid lat/lon, area (km²), mean SST, mean chl, and the region whose box contains the centroid.
+- The advisory pages (https://incois.gov.in/MarineFisheries/PfzAdvisory, `/TextData`) load their content with JavaScript. Find the request the page makes for the advisory data (browser network tab) and fetch that directly.
+- `incois.py`: download the current advisory per sector, parse each zone into region / harbour / bearing / distance / depth (and lat/lon where given), save to `validation/incois/<date>.csv`.
+- Add it to the weekly workflow as a separate daily job, so every issued advisory is kept, and commit `validation/incois/`.
+- INCOIS advisories are daily and use near-real-time data; ours use the newest weekly chlorophyll, which lags by several weeks. Compare by matching dates once our pipeline reaches an archived date.
 
-## Step 4: Outputs
+### Step 2: Comparison (`validate.py`)
 
-- `outputs/<date>/<region>.png`: SST background, chlorophyll contour, PFZ blobs outlined.
-- `outputs/<date>/zones.csv`: one row per zone (region, lat, lon, area_km2, sst, chl).
-- `outputs/<date>/zones.geojson`: zone centroids as points with the same properties.
-- CLI: `uv run pfz.py 2026-11-12`
+- For a date with both outputs, per region:
+  - share of INCOIS zone points that fall inside, or within 10 km of, one of our zone polygons (hit rate)
+  - share of our zone area within 10 km of an INCOIS point (precision proxy)
+  - zone counts side by side
+- Write `validation/<date>.csv` and a summary table per region.
+- Map per region: our polygons plus INCOIS points, for visual checks.
 
-## Step 5: Validation
+### Step 3: Per-region thresholds
 
-- Compare a few dates against INCOIS PFZ advisories (https://incois.gov.in) for the same region.
-- Tune the gradient and chlorophyll thresholds so zone counts and locations are roughly in line.
+- Move `GRAD_MIN` and `CHL_MIN` into `regions.py` per region (default to current values).
+- Sweep both thresholds per region over the archived dates; pick values that maximise hit rate without zone counts far above INCOIS.
+- Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water).
+- Record the sweep table and chosen values here, as in phase 1.
 
-### Tuning pass 1 (no INCOIS data)
+### Step 4: Region assignment by coast
 
-Past INCOIS advisories could not be downloaded (no archive on the website; erddap.incois.gov.in unreachable from outside India), so the first pass only reduces noise.
+Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Kerala longitudes; a zone is given to the first box holding its centroid).
 
-- Zones are clipped to India's EEZ before labelling, which removes zones in Sri Lankan and Pakistani waters.
-- Sweep over two dates, zone counts:
+- Assign each zone to the region of its nearest harbour (`harbours.py` gets a region per harbour), which also matches the advisory text.
+- Keep the boxes only for map zoom and region plots.
+- Drop zones whose nearest harbour is beyond a cutoff (e.g. 300 km) instead of the `region_of` box test.
 
-| Date | grad °C/km | min px | Zones |
-|---|---|---|---|
-| 2026-10-01 | 0.05 | 20 / 50 / 100 | 182 / 81 / 31 |
-| 2026-10-01 | 0.07 | 20 / 50 / 100 | 96 / 40 / 23 |
-| 2026-10-08 | 0.05 | 20 / 50 / 100 | 174 / 83 / 45 |
-| 2026-10-08 | 0.07 | 20 / 50 / 100 | 92 / 38 / 13 |
+### Step 5: Zone polygon holes
 
-- Chosen: `GRAD_MIN = 0.05`, `MIN_PIXELS = 50` (~240 km²). About 80 zones per date, with zones still in every region. Stronger gradient cutoffs empty Lakshadweep and Andaman & Nicobar.
-- Still to do: compare against INCOIS advisories once some are available.
+- `outline` keeps only the longest ring. Keep all rings from the contour: outer ring plus holes (rings inside the outer one) as a GeoJSON Polygon; separate outer rings as a MultiPolygon.
+- Check `zones.geojson` size stays under ~300 KB per date.
 
-## Step 6: Application interface
+### Milestones
 
-Goal: a map people can open in a browser (phone or desktop) to see the latest zones for their coast, without installing Python.
-
-### Users
-
-- **Fishers and cooperatives:** phone, weak signal. Need "where, how far, which direction, how deep" from their harbour.
-- **Fisheries officers and researchers:** desktop. Need past dates, all regions, and downloadable data.
-
-### Approach: static site, no backend
-
-The pipeline already writes files per date, so the interface is a static page that reads them. It can be hosted free on GitHub Pages and updated by a scheduled job.
-
-```
-run.py (date range) ──> outputs/<date>/zones.geojson, sst.png, chl.png
-                        outputs/index.json (dates + zone counts)
-site.py ──> docs/site/  (copies latest N weeks of outputs + web/index.html)
-GitHub Pages serves docs/site/
-```
-
-### 6.1 Batch runner (`run.py`)
-
-- `uv run run.py 2026-09-03 2026-10-08` runs `fetch` + `pfz` for each weekly chlorophyll date in the range.
-- Writes `outputs/index.json`: list of dates with zone counts per region.
-
-### 6.2 Richer zone data (`pfz.py`)
-
-- **Polygons:** export each zone's outline (traced from the label mask with matplotlib `contour`) as a GeoJSON Polygon instead of only the centroid point.
-- **Depth:** sample ETOPO1 bathymetry (`etopo180` on the same ERDDAP server) at each zone centroid; add `depth_m`.
-- **Advisory text:** for each zone, the nearest fishing harbour, compass bearing (16-point) and distance in km, e.g. "Veraval: SW, 45 km, depth 60 m". This mirrors the INCOIS advisory format.
-- **Harbours:** `harbours.py` with name and coordinates of the major fishing harbours per region. Coordinates to be compiled from a cited source (e.g. Department of Fisheries harbour list, OpenStreetMap).
-
-### 6.3 Map overlays
-
-- Save SST and chlorophyll as plain georeferenced PNGs (no axes, transparent land) with their lat/lon bounds, for use as map overlays.
-
-### 6.4 Web page (`web/index.html`)
-
-Single HTML file using Leaflet (from cdnjs) and OpenStreetMap tiles.
-
-- **Date picker:** dates from `index.json`; defaults to the latest.
-- **Region picker:** zooms to the region box and filters the zone list.
-- **Layers:** zone polygons (coloured by chlorophyll), optional SST and chlorophyll overlays, EEZ boundary.
-- **Zone popup / list:** advisory text, area, SST, chlorophyll, depth.
-- **Download:** links to that date's `zones.csv` and `zones.geojson`.
-- **Phone first:** list view under the map, large tap targets, total page data under ~1 MB per date.
-
-### 6.5 Publishing (`site.py` + GitHub Actions)
-
-- `site.py` copies the latest 8 weeks of outputs and `web/index.html` into `docs/site/`.
-- GitHub Pages can only serve a branch's `/` or `/docs`, so `docs/site/` is published with `actions/deploy-pages` instead.
-- A weekly GitHub Actions workflow (`.github/workflows/weekly.yml`) runs `run.py last last` for the newest chlorophyll week, then `site.py`, commits `docs/site/`, and deploys it. Earlier weeks come from the committed `docs/site/outputs/`, so CI only downloads one week.
-
-### Not in the first version
-
-- Regional languages (Gujarati, Marathi, Malayalam, Tamil, Telugu, Odia, Bengali).
-- SMS / WhatsApp push alerts.
-- User accounts or saved harbours.
+1. `incois.py` archiving live advisories, daily workflow job.
+2. `validate.py` comparison metrics and maps for the first overlapping dates.
+3. Per-region thresholds tuned from the comparison.
+4. Region assignment by nearest harbour.
+5. Polygons with holes.
 
 ## Known limitations
 
 - **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
-- **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs for these dates are still produced, but are not actionable.
-- **Region boxes:** zones are clipped to the EEZ, but region labels still come from rectangles; a zone is assigned to the first box containing its centroid.
-- **Chlorophyll lag:** a weekly composite is paired with a daily SST, so the two layers can be a few days apart.
+- **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs are produced but not actionable.
+- **Chlorophyll lag:** the newest weekly composite is often 4 – 6 weeks old (2026-10-08 on 2026-11-15), so the published map is not current.
+- **Distances are straight-line** from harbour to zone centroid and can cross land (e.g. around Kathiawar or Sri Lanka).
+- **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap.
 
-## Milestones
+## Later
 
-1. `pyproject.toml` + `regions.py` + `fetch.py`; download one date successfully.
-2. `pfz.py` front detection and chlorophyll mask; plot to check visually.
-3. Zone labelling and CSV / GeoJSON / PNG outputs.
-4. Validation against INCOIS advisories and threshold tuning.
-5. `run.py` batch runner and `index.json`.
-6. Zone polygons, depth, harbour bearing/distance advisory text.
-7. `web/index.html` map page reading local outputs.
-8. `site.py`, GitHub Pages, weekly GitHub Actions update.
+- Fresher data: near-real-time daily or 3-day VIIRS chlorophyll to cut the lag.
+- Regional languages for advisory text and the page; SMS / WhatsApp alerts.
