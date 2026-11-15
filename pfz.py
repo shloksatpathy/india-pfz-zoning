@@ -176,6 +176,7 @@ def run(date):
     for name in REGIONS:
         count = sum(z["region"] == name for z in zones)
         print(f"  {name}: {count}")
+    return zones
 
 
 if __name__ == "__main__":

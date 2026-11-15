@@ -42,6 +42,7 @@ india-pfz-zoning/
 ├── regions.py     # coastal region bounding boxes
 ├── fetch.py       # download SST and chlorophyll from ERDDAP
 ├── pfz.py         # front detection + chlorophyll filter -> zones
+├── run.py         # batch runner over weekly chlorophyll dates
 └── outputs/       # per-date maps (PNG), zones.csv, zones.geojson
 ```
 
@@ -53,6 +54,12 @@ uv run pfz.py 2026-10-08
 ```
 
 The date must be covered by both datasets (chlorophyll lags SST by a few weeks).
+
+To process every weekly chlorophyll date in a range and write `outputs/index.json` (dates with zone counts per region):
+
+```
+uv run run.py 2026-09-03 2026-10-08
+```
 
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
@@ -85,7 +92,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phases 1–3 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
+Milestones 1–3 and 5 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
 
 ## References
 
