@@ -5,7 +5,7 @@ from pathlib import Path
 
 import fetch
 import pfz
-from regions import REGIONS
+from regions import BBOX, REGIONS
 
 CHL_TIMES = "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSSQchlaWeekly.csv?time[({start}):1:({end})]"
 
@@ -24,8 +24,10 @@ def write_index():
         for f in features:
             counts[f["properties"]["region"]] += 1
         entries.append({"date": path.parent.name, "zones": len(features), "regions": counts})
+    lat_min, lat_max, lon_min, lon_max = BBOX
+    index = {"bounds": [[lat_min, lon_min], [lat_max, lon_max]], "regions": REGIONS, "dates": entries}
     with open("outputs/index.json", "w") as f:
-        json.dump(entries, f, indent=1)
+        json.dump(index, f, indent=1)
     print(f"index: {len(entries)} dates")
 
 

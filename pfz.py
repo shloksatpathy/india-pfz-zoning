@@ -21,6 +21,9 @@ CHL_MIN = 0.3  # mg/m³, productive water threshold
 DILATE = 2  # pixels, joins nearby front pixels into one zone
 MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
 KM_PER_DEG = 111.32
+SST_RANGE = (26, 32)  # °C, overlay colour scale (web/index.html legend uses the same)
+LOG_CHL_RANGE = (-1.5, 1)  # log10 mg/m³, overlay colour scale
+OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
 EARTH_KM = 6371.0
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
@@ -182,7 +185,7 @@ def plot_check(out, date, sst, grad, chl, pfz):
     axes[0].contour(sst.longitude, sst.latitude, grad >= GRAD_MIN, levels=[0.5], colors="k", linewidths=0.4)
     axes[0].set_title(f"SST + fronts (≥ {GRAD_MIN} °C/km)")
 
-    np.log10(chl).plot(ax=axes[1], cmap="viridis", vmin=-1.5, vmax=1, cbar_kwargs={"label": "log10 chl (mg/m³)"})
+    np.log10(chl).plot(ax=axes[1], cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1], cbar_kwargs={"label": "log10 chl (mg/m³)"})
     axes[1].set_title("Chlorophyll-a")
 
     land = sst.isnull()
@@ -195,6 +198,19 @@ def plot_check(out, date, sst, grad, chl, pfz):
     fig.suptitle(date)
     fig.savefig(out / "check.png", dpi=110)
     plt.close(fig)
+
+
+def mercator_rows(da):
+    lat = da.latitude.values
+    y = np.log(np.tan(np.pi / 4 + np.deg2rad(lat) / 2))
+    target = np.rad2deg(2 * np.arctan(np.exp(np.linspace(y[0], y[-1], len(lat) // OVERLAY_STEP))) - np.pi / 2)
+    return da.sel(latitude=target, method="nearest").isel(longitude=slice(None, None, OVERLAY_STEP))
+
+
+def write_overlays(out, sst, chl):
+    plt.imsave(out / "sst.png", mercator_rows(sst).values[::-1], cmap="RdYlBu_r", vmin=SST_RANGE[0], vmax=SST_RANGE[1])
+    log_chl = np.log10(mercator_rows(chl).values[::-1])
+    plt.imsave(out / "chl.png", log_chl, cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1])
 
 
 def run(date):
@@ -210,6 +226,7 @@ def run(date):
 
     plot_check(out, date, sst, grad, chl, pfz)
     write_tables(out, zones)
+    write_overlays(out, sst, chl)
     for name in REGIONS:
         plot_region(out, date, name, sst, chl, labels, zones)
 
