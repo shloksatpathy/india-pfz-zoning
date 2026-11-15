@@ -20,6 +20,8 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
+Depth at each zone centroid comes from ETOPO1 (`etopo180` on the same SST server).
+
 Zones are clipped to India's EEZ (`india_eez.geojson`, outer boundaries of the mainland + Lakshadweep and Andaman & Nicobar EEZs) from [Marine Regions](https://www.marineregions.org), licensed CC-BY 4.0.
 
 ## Coastal regions
@@ -64,7 +66,8 @@ uv run run.py 2026-09-03 2026-10-08
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `zones.csv`, `zones.geojson`: one row/point per zone (region, lat, lon, area_km2, sst, chl)
+- `zones.csv`: one row per zone (region, centroid lat/lon, area_km2, sst, chl, depth_m)
+- `zones.geojson`: zone outlines as polygons with the same properties
 
 ## Example output (2026-10-08)
 

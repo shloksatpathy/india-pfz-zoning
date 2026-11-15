@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.path import Path as Polygon
 import numpy as np
 import xarray as xr
+from contourpy import contour_generator
 from scipy import ndimage
 
 from regions import REGIONS
@@ -25,7 +26,8 @@ def load(date):
     sst = xr.open_dataset(f"data/sst_{date}.nc").analysed_sst.squeeze("time").sortby("latitude")
     chl = xr.open_dataset(f"data/chl_{date}.nc").chlor_a.squeeze(["time", "altitude"]).sortby("latitude")
     chl = chl.interp_like(sst, method="nearest")
-    return sst, chl
+    depth = -xr.open_dataset("data/etopo.nc").altitude.sortby("latitude")
+    return sst, chl, depth
 
 
 def sst_gradient(sst):
@@ -62,7 +64,18 @@ def region_of(lat, lon):
     return None
 
 
-def describe_zones(sst, chl, pfz, labels, ids):
+def outline(labels, label, box, lat, lon):
+    rows = slice(max(box[0].start - 1, 0), box[0].stop + 1)
+    cols = slice(max(box[1].start - 1, 0), box[1].stop + 1)
+    mask = (labels[rows, cols] == label).astype(float)
+    lines = contour_generator(lon[cols], lat[rows], mask).lines(0.5)
+    ring = np.round(max(lines, key=len), 3).tolist()
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    return ring
+
+
+def describe_zones(sst, chl, depth, pfz, labels, ids):
     lat = sst.latitude.values
     lon = sst.longitude.values
     dlat = np.gradient(lat)[:, None] * KM_PER_DEG
@@ -74,9 +87,10 @@ def describe_zones(sst, chl, pfz, labels, ids):
     areas = ndimage.sum(cell_km2, labels, ids)
     mean_sst = ndimage.mean(sst.values, core, ids)
     mean_chl = ndimage.mean(chl.values, core, ids)
+    boxes = ndimage.find_objects(labels)
 
     zones = []
-    for (row, col), area, s, c in zip(centers, areas, mean_sst, mean_chl):
+    for label, (row, col), area, s, c in zip(ids, centers, areas, mean_sst, mean_chl):
         zlat = float(np.interp(row, np.arange(len(lat)), lat))
         zlon = float(np.interp(col, np.arange(len(lon)), lon))
         region = region_of(zlat, zlon)
@@ -90,26 +104,29 @@ def describe_zones(sst, chl, pfz, labels, ids):
             "area_km2": round(float(area), 1),
             "sst": round(float(s), 2),
             "chl": round(float(c), 3),
+            "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
+            "outline": outline(labels, label, boxes[label - 1], lat, lon),
         })
     return zones
 
 
 def write_tables(out, zones):
+    rows = [{k: v for k, v in z.items() if k != "outline"} for z in zones]
     with open(out / "zones.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=zones[0].keys())
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
-        writer.writerows(zones)
+        writer.writerows(rows)
 
     features = [
         {
             "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [z["lon"], z["lat"]]},
-            "properties": z,
+            "geometry": {"type": "Polygon", "coordinates": [z["outline"]]},
+            "properties": row,
         }
-        for z in zones
+        for z, row in zip(zones, rows)
     ]
     with open(out / "zones.geojson", "w") as f:
-        json.dump({"type": "FeatureCollection", "features": features}, f, indent=1)
+        json.dump({"type": "FeatureCollection", "features": features}, f)
 
 
 def plot_region(out, date, name, sst, chl, labels, zones):
@@ -160,12 +177,12 @@ def run(date):
     out = Path("outputs") / date
     out.mkdir(parents=True, exist_ok=True)
 
-    sst, chl = load(date)
+    sst, chl, depth = load(date)
     ocean = sst.notnull() & eez_mask(sst)
     grad = sst_gradient(sst)
     pfz = (grad >= GRAD_MIN) & (chl >= CHL_MIN) & ocean
     labels, ids = label_zones(pfz, ocean)
-    zones = describe_zones(sst, chl, pfz, labels, ids)
+    zones = describe_zones(sst, chl, depth, pfz, labels, ids)
 
     plot_check(out, date, sst, grad, chl, pfz)
     write_tables(out, zones)

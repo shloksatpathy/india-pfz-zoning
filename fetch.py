@@ -5,6 +5,7 @@ from pathlib import Path
 from regions import BBOX
 
 SST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.nc"
+ETOPO_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.nc"
 CHL_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSSQchlaWeekly.nc"
 
 
@@ -26,6 +27,9 @@ def fetch(date):
 
     chl = f"chlor_a[({date})][(0.0)][({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]"
     download(f"{CHL_URL}?{chl}", data / f"chl_{date}.nc")
+
+    etopo = f"altitude[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]"
+    download(f"{ETOPO_URL}?{etopo}", data / "etopo.nc")
 
 
 if __name__ == "__main__":
