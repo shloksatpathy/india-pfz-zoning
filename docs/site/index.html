@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>India PFZ Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --accent: #0b6e99; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15181c; --fg: #e8e8e8; --muted: #9aa0a6; --line: #333; --accent: #4fb3e0; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0 auto 0 0; }
+  select { font-size: 16px; min-height: 44px; padding: 0 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+  #map { height: 55vh; }
+  main { padding: 8px 12px 24px; max-width: 900px; margin: 0 auto; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 4px 0 8px; color: var(--muted); }
+  .bar a { color: var(--accent); min-height: 44px; display: inline-flex; align-items: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 14px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; background: var(--c); border-radius: 3px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; min-height: 44px; }
+  li b { display: block; }
+  li small { color: var(--muted); }
+  .empty { padding: 16px 4px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Potential Fishing Zones</h1>
+  <select id="date" aria-label="Date"></select>
+  <select id="region" aria-label="Region"><option value="">All India</option></select>
+</header>
+<div id="map"></div>
+<main>
+  <div class="bar">
+    <div class="legend">
+      Chlorophyll (mg/m³):
+      <span style="--c:#3b528b">&lt; 0.5</span>
+      <span style="--c:#21918c">0.5 – 1</span>
+      <span style="--c:#5ec962">1 – 3</span>
+      <span style="--c:#fde725">&gt; 3</span>
+    </div>
+    <div id="downloads"></div>
+  </div>
+  <ul id="list"></ul>
+  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA VIIRS. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Bearings and distances are straight-line from the harbour to the zone centre. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
+</main>
+<script>
+const SST_RANGE = "SST 26 – 32 °C";
+const CHL_RANGE = "Chlorophyll 0.03 – 10 mg/m³";
+
+const map = L.map("map");
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 12,
+  attribution: "&copy; OpenStreetMap contributors",
+}).addTo(map);
+
+const dateSelect = document.getElementById("date");
+const regionSelect = document.getElementById("region");
+const list = document.getElementById("list");
+const zoneLayer = L.geoJSON(null, { style: zoneStyle, onEachFeature: (f, layer) => layer.bindPopup(popup(f.properties)) }).addTo(map);
+const sstLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
+const chlLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
+const eezLayer = L.geoJSON(null, { style: { color: "#555", weight: 1, dashArray: "4 4", fill: false } });
+L.control.layers(null, {
+  "Zones": zoneLayer,
+  [SST_RANGE]: sstLayer,
+  [CHL_RANGE]: chlLayer,
+  "EEZ boundary": eezLayer,
+}, { collapsed: true }).addTo(map);
+
+let index;
+let features = [];
+
+function chlColor(chl) {
+  return chl < 0.5 ? "#3b528b" : chl < 1 ? "#21918c" : chl < 3 ? "#5ec962" : "#fde725";
+}
+
+function zoneStyle(f) {
+  return { color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 };
+}
+
+function popup(p) {
+  return `<b>${p.advisory}</b><br>Zone ${p.id}, ${p.region}<br>` +
+    `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E<br>` +
+    `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³ · Depth ${p.depth_m} m`;
+}
+
+function showList() {
+  const region = regionSelect.value;
+  const shown = features.filter(f => !region || f.properties.region === region)
+    .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
+  list.innerHTML = "";
+  if (shown.length === 0) {
+    list.innerHTML = `<li class="empty">No zones for this date and region.</li>`;
+    return;
+  }
+  for (const f of shown) {
+    const p = f.properties;
+    const li = document.createElement("li");
+    li.innerHTML = `<b>${p.advisory}</b><small>Zone ${p.id} · ${p.region} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³</small>`;
+    li.onclick = () => {
+      zoneLayer.eachLayer(layer => {
+        if (layer.feature === f) {
+          map.fitBounds(layer.getBounds(), { maxZoom: 9 });
+          layer.openPopup();
+        }
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    list.appendChild(li);
+  }
+}
+
+function zoomToRegion() {
+  const box = index.regions[regionSelect.value];
+  map.fitBounds(box ? [[box[0], box[2]], [box[1], box[3]]] : index.bounds);
+  showList();
+}
+
+async function loadDate() {
+  const date = dateSelect.value;
+  const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
+  features = geojson.features;
+  zoneLayer.clearLayers().addData(geojson);
+  sstLayer.setUrl(`outputs/${date}/sst.png`).setBounds(index.bounds);
+  chlLayer.setUrl(`outputs/${date}/chl.png`).setBounds(index.bounds);
+  document.getElementById("downloads").innerHTML =
+    `Download: <a href="outputs/${date}/zones.csv" download>CSV</a> · <a href="outputs/${date}/zones.geojson" download>GeoJSON</a>`;
+  showList();
+}
+
+async function start() {
+  index = await (await fetch("outputs/index.json")).json();
+  for (const d of [...index.dates].reverse()) {
+    dateSelect.add(new Option(`${d.date} (${d.zones} zones)`, d.date));
+  }
+  for (const name of Object.keys(index.regions)) {
+    regionSelect.add(new Option(name, name));
+  }
+  dateSelect.onchange = loadDate;
+  regionSelect.onchange = zoomToRegion;
+  map.fitBounds(index.bounds);
+  map.on("overlayadd", async e => {
+    if (e.layer === eezLayer && eezLayer.getLayers().length === 0) {
+      eezLayer.addData(await (await fetch("india_eez.geojson")).json());
+    }
+  });
+  await loadDate();
+}
+
+start();
+</script>
+</body>
+</html>

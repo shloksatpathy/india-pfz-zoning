@@ -1,0 +1,41 @@
+name: Weekly PFZ update
+
+on:
+  schedule:
+    - cron: "0 6 * * 2"  # Tuesdays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run pipeline for the newest chlorophyll week
+        run: uv run run.py last last
+      - name: Build site
+        run: uv run site.py
+      - name: Commit site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/site
+          git diff --cached --quiet || git commit -m "Weekly PFZ update $(date -u +%F)"
+          git push
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+      - id: deploy
+        uses: actions/deploy-pages@v4

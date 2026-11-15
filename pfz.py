@@ -137,10 +137,13 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
     return zones
 
 
+FIELDS = ["id", "region", "lat", "lon", "area_km2", "sst", "chl", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
+
+
 def write_tables(out, zones):
     rows = [{k: v for k, v in z.items() if k != "outline"} for z in zones]
     with open(out / "zones.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
 

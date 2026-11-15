@@ -16,9 +16,9 @@ def chl_dates(start, end):
     return [line[:10] for line in lines]
 
 
-def write_index():
+def write_index(root):
     entries = []
-    for path in sorted(Path("outputs").glob("*/zones.geojson")):
+    for path in sorted(Path(root).glob("*/zones.geojson")):
         features = json.load(open(path))["features"]
         counts = {name: 0 for name in REGIONS}
         for f in features:
@@ -26,7 +26,7 @@ def write_index():
         entries.append({"date": path.parent.name, "zones": len(features), "regions": counts})
     lat_min, lat_max, lon_min, lon_max = BBOX
     index = {"bounds": [[lat_min, lon_min], [lat_max, lon_max]], "regions": REGIONS, "dates": entries}
-    with open("outputs/index.json", "w") as f:
+    with open(Path(root) / "index.json", "w") as f:
         json.dump(index, f, indent=1)
     print(f"index: {len(entries)} dates")
 
@@ -35,4 +35,4 @@ if __name__ == "__main__":
     for date in chl_dates(sys.argv[1], sys.argv[2]):
         fetch.fetch(date)
         pfz.run(date)
-    write_index()
+    write_index("outputs")

@@ -49,6 +49,7 @@ india-pfz-zoning/
 ├── run.py         # batch runner over weekly chlorophyll dates
 ├── harbours.py    # fishing harbour coordinates for advisory text
 ├── web/index.html # Leaflet map page reading outputs/
+├── site.py        # builds docs/site/ (latest 8 weeks + map page)
 └── outputs/       # per-date maps (PNG), zones.csv, zones.geojson
 ```
 
@@ -73,6 +74,17 @@ Outputs in `outputs/<date>/`:
 - `zones.csv`: one row per zone (region, centroid lat/lon, area_km2, sst, chl, depth_m, nearest harbour, bearing, distance_km, advisory text such as `Veraval: SW, 45 km, depth 60 m`)
 - `zones.geojson`: zone outlines as polygons with the same properties
 - `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
+
+## Web map
+
+`uv run site.py` copies the latest 8 weeks of outputs, the map page and the EEZ into `docs/site/`. To view it locally:
+
+```
+uv run site.py
+python -m http.server -d docs/site
+```
+
+A weekly GitHub Actions workflow processes the newest chlorophyll week, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages.
 
 ## Example output (2026-10-08)
 
@@ -100,7 +112,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Milestones 1–3 and 5–7 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
+Milestones 1–3 and 5–8 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
 
 ## References
 

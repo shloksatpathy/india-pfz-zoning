@@ -141,8 +141,8 @@ Single HTML file using Leaflet (from cdnjs) and OpenStreetMap tiles.
 ### 6.5 Publishing (`site.py` + GitHub Actions)
 
 - `site.py` copies the latest 8 weeks of outputs and `web/index.html` into `docs/site/`.
-- GitHub Pages serves `docs/site/`.
-- A weekly GitHub Actions workflow runs `run.py` for the newest chlorophyll week, then `site.py`, and commits the result.
+- GitHub Pages can only serve a branch's `/` or `/docs`, so `docs/site/` is published with `actions/deploy-pages` instead.
+- A weekly GitHub Actions workflow (`.github/workflows/weekly.yml`) runs `run.py last last` for the newest chlorophyll week, then `site.py`, commits `docs/site/`, and deploys it. Earlier weeks come from the committed `docs/site/outputs/`, so CI only downloads one week.
 
 ### Not in the first version
 
