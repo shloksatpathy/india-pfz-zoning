@@ -22,6 +22,8 @@ Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.n
 
 Depth at each zone centroid comes from ETOPO1 (`etopo180` on the same SST server).
 
+Harbour names come from the Department of Fisheries *Handbook on Fisheries Statistics 2020* (Tables 13.2 and 13.3: major harbours and commissioned fishing harbours; Lakshadweep landing centres). Coordinates come from OpenStreetMap via Nominatim (© OpenStreetMap contributors, ODbL). Agro, Dholai, Pazhayar, Roychowk and Petuaghat are left out because they could not be located reliably. Bearing and distance are straight-line from the harbour to the zone centroid.
+
 Zones are clipped to India's EEZ (`india_eez.geojson`, outer boundaries of the mainland + Lakshadweep and Andaman & Nicobar EEZs) from [Marine Regions](https://www.marineregions.org), licensed CC-BY 4.0.
 
 ## Coastal regions
@@ -45,6 +47,7 @@ india-pfz-zoning/
 ├── fetch.py       # download SST and chlorophyll from ERDDAP
 ├── pfz.py         # front detection + chlorophyll filter -> zones
 ├── run.py         # batch runner over weekly chlorophyll dates
+├── harbours.py    # fishing harbour coordinates for advisory text
 └── outputs/       # per-date maps (PNG), zones.csv, zones.geojson
 ```
 
@@ -66,7 +69,7 @@ uv run run.py 2026-09-03 2026-10-08
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `zones.csv`: one row per zone (region, centroid lat/lon, area_km2, sst, chl, depth_m)
+- `zones.csv`: one row per zone (region, centroid lat/lon, area_km2, sst, chl, depth_m, nearest harbour, bearing, distance_km, advisory text such as `Veraval: SW, 45 km, depth 60 m`)
 - `zones.geojson`: zone outlines as polygons with the same properties
 
 ## Example output (2026-10-08)
@@ -95,7 +98,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Milestones 1–3 and 5 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
+Milestones 1–3, 5 and 6 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
 
 ## References
 

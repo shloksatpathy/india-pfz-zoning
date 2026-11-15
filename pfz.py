@@ -13,6 +13,7 @@ import xarray as xr
 from contourpy import contour_generator
 from scipy import ndimage
 
+from harbours import HARBOURS
 from regions import REGIONS
 
 GRAD_MIN = 0.05  # °C/km, SST front threshold
@@ -20,6 +21,8 @@ CHL_MIN = 0.3  # mg/m³, productive water threshold
 DILATE = 2  # pixels, joins nearby front pixels into one zone
 MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
 KM_PER_DEG = 111.32
+EARTH_KM = 6371.0
+COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
 def load(date):
@@ -64,6 +67,21 @@ def region_of(lat, lon):
     return None
 
 
+def nearest_harbour(lat, lon):
+    best = None
+    for name, (hlat, hlon) in HARBOURS.items():
+        p1, p2 = np.deg2rad(hlat), np.deg2rad(lat)
+        dlon = np.deg2rad(lon - hlon)
+        a = np.sin((p2 - p1) / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dlon / 2) ** 2
+        km = 2 * EARTH_KM * np.arcsin(np.sqrt(a))
+        if best is None or km < best[1]:
+            y = np.sin(dlon) * np.cos(p2)
+            x = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dlon)
+            bearing = np.rad2deg(np.arctan2(y, x)) % 360
+            best = (name, km, COMPASS[int((bearing + 11.25) // 22.5) % 16])
+    return best
+
+
 def outline(labels, label, box, lat, lon):
     rows = slice(max(box[0].start - 1, 0), box[0].stop + 1)
     cols = slice(max(box[1].start - 1, 0), box[1].stop + 1)
@@ -96,6 +114,8 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
         region = region_of(zlat, zlon)
         if region is None:
             continue
+        depth_m = int(depth.sel(latitude=zlat, longitude=zlon, method="nearest"))
+        harbour, km, direction = nearest_harbour(zlat, zlon)
         zones.append({
             "id": len(zones) + 1,
             "region": region,
@@ -104,7 +124,11 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
             "area_km2": round(float(area), 1),
             "sst": round(float(s), 2),
             "chl": round(float(c), 3),
-            "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
+            "depth_m": depth_m,
+            "harbour": harbour,
+            "bearing": direction,
+            "distance_km": round(float(km)),
+            "advisory": f"{harbour}: {direction}, {km:.0f} km, depth {depth_m} m",
             "outline": outline(labels, label, boxes[label - 1], lat, lon),
         })
     return zones
