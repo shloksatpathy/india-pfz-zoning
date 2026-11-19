@@ -130,7 +130,7 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
    Gujarat matches well. Off Maharashtra & Goa the INCOIS lines lie 30 – 60 km offshore while our zones hug the coast, where chlorophyll is highest: a candidate for a higher `CHL_MIN` there. INCOIS issued no east coast lines that day, so precision is only meaningful in regions where INCOIS has lines.
 5. Per-region thresholds tuned from the comparison.
 6. ~~Region assignment by nearest harbour.~~ Done 2026-11-19: zones take the region of the harbour nearest their points; zones over 300 km from every harbour are dropped. Zones per date rose (e.g. 2026-10-20: 44 → 60) because zones between the old boxes are kept. Zones off Daman now count as Maharashtra & Goa (nearest listed harbour Mumbai; Dholai is missing).
-7. Polygons with holes.
+7. ~~Polygons with holes.~~ Done 2026-11-19: 3 – 83 holes per date; no zone needed a MultiPolygon. `zones.geojson` is 118 – 237 KB per date, except 2026-09-29 at 533 KB (133 zones, 493 points).
 
 ## Known limitations
 

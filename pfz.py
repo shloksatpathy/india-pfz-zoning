@@ -85,11 +85,23 @@ def outline(labels, label, box, lat, lon):
     rows = slice(max(box[0].start - 1, 0), box[0].stop + 1)
     cols = slice(max(box[1].start - 1, 0), box[1].stop + 1)
     mask = (labels[rows, cols] == label).astype(float)
-    lines = contour_generator(lon[cols], lat[rows], mask).lines(0.5)
-    ring = np.round(max(lines, key=len), 3).tolist()
-    if ring[0] != ring[-1]:
-        ring.append(ring[0])
-    return ring
+    rings = []
+    for line in contour_generator(lon[cols], lat[rows], mask).lines(0.5):
+        ring = np.round(line, 3).tolist()
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
+        rings.append(ring)
+
+    # a ring inside an odd number of other rings is a hole
+    depth = [sum(Polygon(o).contains_point(r[0]) for o in rings if o is not r) for r in rings]
+    polygons = []
+    for outer, d in zip(rings, depth):
+        if d % 2 == 0:
+            holes = [r for r, dr in zip(rings, depth) if dr == d + 1 and Polygon(outer).contains_point(r[0])]
+            polygons.append([outer, *holes])
+    if len(polygons) == 1:
+        return {"type": "Polygon", "coordinates": polygons[0]}
+    return {"type": "MultiPolygon", "coordinates": polygons}
 
 
 def advisory(lat, lon, depth):
@@ -164,7 +176,7 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
             "bearing": closest["bearing"],
             "distance_km": closest["distance_km"],
             "advisory": closest["advisory"],
-            "outline": outline(labels, label, boxes[label - 1], lat, lon),
+            "geometry": outline(labels, label, boxes[label - 1], lat, lon),
             "point_list": points,
         })
     return zones
@@ -189,7 +201,7 @@ def write_tables(out, zones, sst_date, chl_date):
     features = [
         {
             "type": "Feature",
-            "geometry": {"type": "Polygon", "coordinates": [z["outline"]]},
+            "geometry": z["geometry"],
             "properties": row,
         }
         for z, row in zip(zones, rows)

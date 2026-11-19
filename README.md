@@ -76,7 +76,7 @@ Outputs in `outputs/<date>/`:
 - `<region>.png`: per-region map with numbered zones
 - `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth and advisory text such as `Veraval: SW, 45 km, depth 60 m`
 - `zones.csv`: one row per zone (region, an interior lat/lon, area_km2, sst, chl, depth_m, number of points, and the advisory of the point closest to its harbour)
-- `zones.geojson`: zone outlines as polygons plus the advisory points (`kind: "point"`)
+- `zones.geojson`: zone outlines as polygons (with holes) plus the advisory points (`kind: "point"`)
 - `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
 
 ## Web map
@@ -116,7 +116,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4 and 6 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Next: per-region thresholds once a few weeks are archived, and polygon holes.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. Next: per-region thresholds once a few weeks of INCOIS advisories are archived.
 
 ## References
 

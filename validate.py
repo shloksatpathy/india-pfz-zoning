@@ -38,6 +38,22 @@ def incois_segments(path):
     return rows
 
 
+def polygons(geometry):
+    if geometry["type"] == "Polygon":
+        return [geometry["coordinates"]]
+    return geometry["coordinates"]
+
+
+def inside(geometry, lonlat):
+    hit = np.zeros(len(lonlat), dtype=bool)
+    for outer, *holes in polygons(geometry):
+        h = Polygon(outer).contains_points(lonlat)
+        for hole in holes:
+            h &= ~Polygon(hole).contains_points(lonlat)
+        hit |= h
+    return hit
+
+
 def our_date(day):
     dates = [p.parent.name for p in Path("outputs").glob("*/zones.geojson")]
     best = min(dates, key=lambda d: abs((date.fromisoformat(d) - date.fromisoformat(day)).days))
@@ -49,7 +65,7 @@ def our_date(day):
 def compare(day):
     ours = our_date(day)
     features = json.load(open(f"outputs/{ours}/zones.geojson"))["features"]
-    zones = [f for f in features if f["geometry"]["type"] == "Polygon"]
+    zones = [f for f in features if f["geometry"]["type"] != "Point"]
     points = [f["properties"] for f in features if f["geometry"]["type"] == "Point"]
     segments = incois_segments(f"validation/incois/{day}.geojson")
 
@@ -58,10 +74,10 @@ def compare(day):
     seg_km = np.array([s[2] for s in segments])
     seg_region = [s[3] for s in segments]
 
-    outline = np.concatenate([f["geometry"]["coordinates"][0] for f in zones])
+    outline = np.concatenate([ring for f in zones for poly in polygons(f["geometry"]) for ring in poly])
     near_zone = cKDTree(km_xy(outline[:, 0], outline[:, 1])).query(km_xy(seg_lon, seg_lat))[0] <= NEAR_KM
     for f in zones:
-        near_zone |= Polygon(f["geometry"]["coordinates"][0]).contains_points(np.column_stack([seg_lon, seg_lat]))
+        near_zone |= inside(f["geometry"], np.column_stack([seg_lon, seg_lat]))
 
     pt_lon = np.array([p["lon"] for p in points])
     pt_lat = np.array([p["lat"] for p in points])
@@ -102,8 +118,9 @@ def plot(day, ours, zones, points, segments, seg_region):
         lat_min, lat_max, lon_min, lon_max = REGIONS[name]
         fig, ax = plt.subplots(figsize=(8, 8), constrained_layout=True)
         for f in zones:
-            ring = np.array(f["geometry"]["coordinates"][0])
-            ax.fill(ring[:, 0], ring[:, 1], color="tab:green", alpha=0.4, lw=0)
+            for outer, *_ in polygons(f["geometry"]):
+                ring = np.array(outer)
+                ax.fill(ring[:, 0], ring[:, 1], color="tab:green", alpha=0.4, lw=0)
         ax.scatter([p["lon"] for p in points], [p["lat"] for p in points], s=8, c="k", label=f"our points ({ours})")
         for f in lines:
             for line in f["geometry"]["coordinates"]:
