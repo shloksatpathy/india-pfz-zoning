@@ -50,6 +50,7 @@ india-pfz-zoning/
 ├── harbours.py    # fishing harbour coordinates for advisory text
 ├── web/index.html # Leaflet map page reading outputs/
 ├── site.py        # builds docs/site/ (latest 8 weeks + map page)
+├── incois.py      # archives the current INCOIS PFZ lines to validation/incois/
 └── outputs/       # per-date maps (PNG), zones.csv, points.csv, zones.geojson
 ```
 
@@ -114,7 +115,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1 (near-real-time chlorophyll) and 2 (advisory points per zone) are done; next is archiving INCOIS advisories for validation.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–3 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). Next is comparing our zones with the archive.
 
 ## References
 

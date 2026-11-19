@@ -33,6 +33,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/site
           git diff --cached --quiet || git commit -m "Weekly PFZ update $(date -u +%F)"
+          git pull --rebase
           git push
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -76,19 +76,19 @@ One centre point cannot describe a zone 200 km across. INCOIS advisories list se
 
 INCOIS has no archive of past advisories, so collect the live ones from now on.
 
-- The advisory pages (https://incois.gov.in/MarineFisheries/PfzAdvisory, `/TextData`) load their content with JavaScript. Find the request the page makes for the advisory data (browser network tab) and fetch that directly.
-- `incois.py`: download the current advisory per sector, parse each zone into region / harbour / bearing / distance / depth (and lat/lon where given), save to `validation/incois/<date>.csv`.
-- Add it to the workflow as a separate daily job, so every issued advisory is kept, and commit `validation/incois/`.
+- The text pages (https://incois.gov.in/MarineFisheries/PfzAdvisory, `/TextData`) only describe the service. The PFZ WebGIS page (`/MarineFisheries/PfzWebGis`) draws the current advisory from a GeoServer WFS layer, `PFZ_Automation:pfzlines`, as GeoJSON lines with state, sector, year and Julian day.
+- `incois.py`: fetch that layer, thin each line to ~1 km vertex spacing, save `validation/incois/<date>.geojson` (~20 KB per day). Lines are better than parsed text for comparison: distances can be measured to the line itself.
+- `.github/workflows/incois.yml`: daily at 13:00 IST, commits `validation/incois/`.
 - With NRT chlorophyll (step 1), our dates trail INCOIS by days rather than weeks, so archived advisories can be compared within about 10 days.
 
 ### Step 4: Comparison (`validate.py`)
 
 - For a date with both outputs, per region:
-  - share of INCOIS points that fall inside, or within 10 km of, one of our zone polygons (hit rate)
-  - share of our advisory points (step 2) within 10 km of an INCOIS point (precision proxy)
+  - share of INCOIS line length inside, or within 10 km of, one of our zone polygons (hit rate)
+  - share of our advisory points (step 2) within 10 km of an INCOIS line (precision proxy)
   - zone and point counts side by side
 - Write `validation/<date>.csv` and a summary table per region.
-- Map per region: our polygons and points plus INCOIS points, for visual checks.
+- Map per region: our polygons and points plus INCOIS lines, for visual checks.
 
 ### Step 5: Per-region thresholds
 
@@ -114,7 +114,7 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
 
 1. ~~NRT chlorophyll and separate SST / chlorophyll dates; site rebuilt from NRT.~~ Done 2026-11-19: 8 weeks 2026-09-29 – 2026-11-17, zones per date 118, 78, 74, 44, 36, 61, 48, 51.
 2. ~~Advisory points per zone (`points.csv`, map markers, grouped list).~~ Done 2026-11-19: 112 – 493 points per date; the 4,361 km² Gujarat zone on 2026-11-17 has 12 points from Veraval to Porbandar. Points show on the map from zoom 7.
-3. `incois.py` archiving live advisories, daily workflow job.
+3. ~~`incois.py` archiving live advisories, daily workflow job.~~ Done 2026-11-19: first archive 2026-11-18, 30 lines (Gujarat 7, Kerala 7, Maharashtra 6, Karnataka 5, Lakshadweep 2, Andaman 2, Goa 1).
 4. `validate.py` comparison metrics and maps for the first overlapping dates.
 5. Per-region thresholds tuned from the comparison.
 6. Region assignment by nearest harbour.

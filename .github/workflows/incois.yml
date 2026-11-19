@@ -1,0 +1,26 @@
+name: Daily INCOIS archive
+
+on:
+  schedule:
+    - cron: "30 7 * * *"  # 13:00 IST, after the day's advisory is issued
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Archive current INCOIS PFZ lines
+        run: uv run incois.py
+      - name: Commit archive
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add validation/incois
+          git diff --cached --quiet || git commit -m "INCOIS PFZ archive $(date -u +%F)"
+          git pull --rebase
+          git push
