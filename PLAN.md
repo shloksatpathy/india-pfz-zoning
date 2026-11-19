@@ -87,12 +87,13 @@ INCOIS has no archive of past advisories, so collect the live ones from now on.
   - share of INCOIS line length inside, or within 10 km of, one of our zone polygons (hit rate)
   - share of our advisory points (step 2) within 10 km of an INCOIS line (precision proxy)
   - zone and point counts side by side
-- Write `validation/<date>.csv` and a summary table per region.
-- Map per region: our polygons and points plus INCOIS lines, for visual checks.
+- `uv run validate.py <INCOIS date>` uses our output nearest that date (within 3 days), writes `validation/<date>.csv`, and prints the table.
+- Maps per region with INCOIS lines go to `outputs/validation/<date>/` (not committed): our polygons and points plus INCOIS lines, for visual checks.
 
 ### Step 5: Per-region thresholds
 
 - Move `GRAD_MIN` and `CHL_MIN` into `regions.py` per region (default to current values).
+- Needs a few weeks of archived INCOIS dates first (archive started 2026-11-18).
 - Sweep both thresholds per region over the archived dates; pick values that maximise hit rate without zone counts far above INCOIS.
 - Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water). Tighter thresholds there also shrink the oversized zones.
 - Record the sweep table and chosen values here, as in phase 1.
@@ -115,7 +116,18 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
 1. ~~NRT chlorophyll and separate SST / chlorophyll dates; site rebuilt from NRT.~~ Done 2026-11-19: 8 weeks 2026-09-29 – 2026-11-17, zones per date 118, 78, 74, 44, 36, 61, 48, 51.
 2. ~~Advisory points per zone (`points.csv`, map markers, grouped list).~~ Done 2026-11-19: 112 – 493 points per date; the 4,361 km² Gujarat zone on 2026-11-17 has 12 points from Veraval to Porbandar. Points show on the map from zoom 7.
 3. ~~`incois.py` archiving live advisories, daily workflow job.~~ Done 2026-11-19: first archive 2026-11-18, 30 lines (Gujarat 7, Kerala 7, Maharashtra 6, Karnataka 5, Lakshadweep 2, Andaman 2, Goa 1).
-4. `validate.py` comparison metrics and maps for the first overlapping dates.
+4. ~~`validate.py` comparison metrics and maps for the first overlapping dates.~~ Done 2026-11-19. First result, INCOIS 2026-11-18 vs ours 2026-11-17 (`validation/2026-11-18.csv`):
+
+   | Region | INCOIS lines (km) | Hit rate | Our points | Precision |
+   |---|---|---|---|---|
+   | Gujarat | 7 (219) | 1.00 | 42 | 0.26 |
+   | Maharashtra & Goa | 7 (318) | 0.13 | 18 | 0.00 |
+   | Karnataka & Kerala | 10 (387) | 0.27 | 5 | 0.60 |
+   | Lakshadweep | 2 (82) | 0.00 | 1 | 0.00 |
+   | Andaman & Nicobar | 2 (84) | 0.07 | 26 | 0.00 |
+   | East coast regions | 0 | – | 44 | – |
+
+   Gujarat matches well. Off Maharashtra & Goa the INCOIS lines lie 30 – 60 km offshore while our zones hug the coast, where chlorophyll is highest: a candidate for a higher `CHL_MIN` there. INCOIS issued no east coast lines that day, so precision is only meaningful in regions where INCOIS has lines.
 5. Per-region thresholds tuned from the comparison.
 6. Region assignment by nearest harbour.
 7. Polygons with holes.
