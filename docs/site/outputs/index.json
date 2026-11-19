@@ -64,15 +64,15 @@
    "date": "2026-09-29",
    "sst_date": "2026-09-29",
    "chl_date": "2026-09-29",
-   "zones": 118,
+   "zones": 133,
    "regions": {
-    "Gujarat": 23,
+    "Gujarat": 22,
     "Maharashtra & Goa": 9,
-    "Karnataka & Kerala": 23,
-    "Lakshadweep": 11,
-    "Tamil Nadu & Puducherry": 13,
-    "Andhra Pradesh": 33,
-    "Odisha & West Bengal": 4,
+    "Karnataka & Kerala": 38,
+    "Lakshadweep": 9,
+    "Tamil Nadu & Puducherry": 22,
+    "Andhra Pradesh": 26,
+    "Odisha & West Bengal": 5,
     "Andaman & Nicobar": 2
    }
   },
@@ -80,31 +80,31 @@
    "date": "2026-10-06",
    "sst_date": "2026-10-06",
    "chl_date": "2026-10-06",
-   "zones": 78,
+   "zones": 85,
    "regions": {
-    "Gujarat": 12,
+    "Gujarat": 11,
     "Maharashtra & Goa": 7,
-    "Karnataka & Kerala": 13,
-    "Lakshadweep": 5,
-    "Tamil Nadu & Puducherry": 8,
-    "Andhra Pradesh": 25,
-    "Odisha & West Bengal": 6,
-    "Andaman & Nicobar": 2
+    "Karnataka & Kerala": 20,
+    "Lakshadweep": 4,
+    "Tamil Nadu & Puducherry": 14,
+    "Andhra Pradesh": 21,
+    "Odisha & West Bengal": 7,
+    "Andaman & Nicobar": 1
    }
   },
   {
    "date": "2026-10-13",
    "sst_date": "2026-10-13",
    "chl_date": "2026-10-13",
-   "zones": 74,
+   "zones": 86,
    "regions": {
     "Gujarat": 6,
-    "Maharashtra & Goa": 11,
-    "Karnataka & Kerala": 8,
+    "Maharashtra & Goa": 9,
+    "Karnataka & Kerala": 14,
     "Lakshadweep": 6,
-    "Tamil Nadu & Puducherry": 2,
-    "Andhra Pradesh": 24,
-    "Odisha & West Bengal": 15,
+    "Tamil Nadu & Puducherry": 9,
+    "Andhra Pradesh": 20,
+    "Odisha & West Bengal": 20,
     "Andaman & Nicobar": 2
    }
   },
@@ -112,15 +112,15 @@
    "date": "2026-10-20",
    "sst_date": "2026-10-20",
    "chl_date": "2026-10-20",
-   "zones": 44,
+   "zones": 60,
    "regions": {
     "Gujarat": 9,
     "Maharashtra & Goa": 2,
-    "Karnataka & Kerala": 0,
+    "Karnataka & Kerala": 5,
     "Lakshadweep": 4,
-    "Tamil Nadu & Puducherry": 0,
-    "Andhra Pradesh": 11,
-    "Odisha & West Bengal": 17,
+    "Tamil Nadu & Puducherry": 4,
+    "Andhra Pradesh": 10,
+    "Odisha & West Bengal": 25,
     "Andaman & Nicobar": 1
    }
   },
@@ -128,15 +128,15 @@
    "date": "2026-10-27",
    "sst_date": "2026-10-27",
    "chl_date": "2026-10-27",
-   "zones": 37,
+   "zones": 41,
    "regions": {
-    "Gujarat": 14,
-    "Maharashtra & Goa": 4,
+    "Gujarat": 13,
+    "Maharashtra & Goa": 5,
     "Karnataka & Kerala": 8,
     "Lakshadweep": 0,
-    "Tamil Nadu & Puducherry": 6,
+    "Tamil Nadu & Puducherry": 9,
     "Andhra Pradesh": 0,
-    "Odisha & West Bengal": 5,
+    "Odisha & West Bengal": 6,
     "Andaman & Nicobar": 0
    }
   },
@@ -144,48 +144,48 @@
    "date": "2026-11-03",
    "sst_date": "2026-11-03",
    "chl_date": "2026-11-03",
-   "zones": 61,
+   "zones": 66,
    "regions": {
-    "Gujarat": 12,
-    "Maharashtra & Goa": 20,
-    "Karnataka & Kerala": 4,
-    "Lakshadweep": 7,
-    "Tamil Nadu & Puducherry": 4,
-    "Andhra Pradesh": 6,
-    "Odisha & West Bengal": 5,
-    "Andaman & Nicobar": 3
+    "Gujarat": 11,
+    "Maharashtra & Goa": 17,
+    "Karnataka & Kerala": 11,
+    "Lakshadweep": 8,
+    "Tamil Nadu & Puducherry": 7,
+    "Andhra Pradesh": 4,
+    "Odisha & West Bengal": 6,
+    "Andaman & Nicobar": 2
    }
   },
   {
    "date": "2026-11-10",
    "sst_date": "2026-11-10",
    "chl_date": "2026-11-09",
-   "zones": 48,
+   "zones": 56,
    "regions": {
-    "Gujarat": 15,
-    "Maharashtra & Goa": 6,
-    "Karnataka & Kerala": 6,
+    "Gujarat": 13,
+    "Maharashtra & Goa": 9,
+    "Karnataka & Kerala": 8,
     "Lakshadweep": 0,
     "Tamil Nadu & Puducherry": 2,
     "Andhra Pradesh": 6,
-    "Odisha & West Bengal": 12,
-    "Andaman & Nicobar": 1
+    "Odisha & West Bengal": 18,
+    "Andaman & Nicobar": 0
    }
   },
   {
    "date": "2026-11-17",
    "sst_date": "2026-11-17",
    "chl_date": "2026-11-09",
-   "zones": 51,
+   "zones": 52,
    "regions": {
-    "Gujarat": 13,
-    "Maharashtra & Goa": 7,
-    "Karnataka & Kerala": 3,
+    "Gujarat": 10,
+    "Maharashtra & Goa": 9,
+    "Karnataka & Kerala": 5,
     "Lakshadweep": 1,
-    "Tamil Nadu & Puducherry": 7,
+    "Tamil Nadu & Puducherry": 8,
     "Andhra Pradesh": 3,
-    "Odisha & West Bengal": 8,
-    "Andaman & Nicobar": 9
+    "Odisha & West Bengal": 10,
+    "Andaman & Nicobar": 6
    }
   }
  ]

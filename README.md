@@ -116,7 +116,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–3 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Next: per-region thresholds once a few weeks are archived.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4 and 6 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Next: per-region thresholds once a few weeks are archived, and polygon holes.
 
 ## References
 

@@ -26,6 +26,7 @@ LOG_CHL_RANGE = (-1.5, 1)  # log10 mg/m³, overlay colour scale
 OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
 POINT_TILE_KM = 30  # one advisory point per tile of this size
 MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
+MAX_HARBOUR_KM = 300  # zones farther than this from every harbour are dropped
 EARTH_KM = 6371.0
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
@@ -65,16 +66,9 @@ def label_zones(pfz, ocean):
     return labels, keep
 
 
-def region_of(lat, lon):
-    for name, (lat_min, lat_max, lon_min, lon_max) in REGIONS.items():
-        if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
-            return name
-    return None
-
-
 def nearest_harbour(lat, lon):
     best = None
-    for name, (hlat, hlon) in HARBOURS.items():
+    for name, (hlat, hlon, _) in HARBOURS.items():
         p1, p2 = np.deg2rad(hlat), np.deg2rad(lat)
         dlon = np.deg2rad(lon - hlon)
         a = np.sin((p2 - p1) / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dlon / 2) ** 2
@@ -149,15 +143,13 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
         zlat, zlon = nearest_pixel(plat, plon, plat.mean(), plon.mean())
-        region = region_of(zlat, zlon)
-        if region is None:
-            continue
-        zone_id = len(zones) + 1
-        points = [
-            {"zone_id": zone_id, "point": n + 1, "region": region, **advisory(plat_, plon_, depth)}
-            for n, (plat_, plon_) in enumerate(tile_points(plat, plon))
-        ]
+        points = [advisory(plat_, plon_, depth) for plat_, plon_ in tile_points(plat, plon)]
         closest = min(points, key=lambda pt: pt["distance_km"])
+        if closest["distance_km"] > MAX_HARBOUR_KM:
+            continue
+        region = HARBOURS[closest["harbour"]][2]
+        zone_id = len(zones) + 1
+        points = [{"zone_id": zone_id, "point": n + 1, "region": region, **pt} for n, pt in enumerate(points)]
         zones.append({
             "id": zone_id,
             "region": region,

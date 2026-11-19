@@ -12,7 +12,8 @@ from matplotlib.path import Path as Polygon
 import numpy as np
 from scipy.spatial import cKDTree
 
-from pfz import KM_PER_DEG, region_of
+from harbours import HARBOURS
+from pfz import KM_PER_DEG, nearest_harbour
 from regions import REGIONS
 
 NEAR_KM = 10  # a line or point this close to the other set counts as matched
@@ -32,7 +33,7 @@ def incois_segments(path):
             mid = (line[1:] + line[:-1]) / 2
             xy = km_xy(line[:, 0], line[:, 1])
             length = np.hypot(*np.diff(xy, axis=0).T)
-            region = region_of(line[len(line) // 2, 1], line[len(line) // 2, 0])
+            region = HARBOURS[nearest_harbour(line[len(line) // 2, 1], line[len(line) // 2, 0])[0]][2]
             rows += [(m[0], m[1], km, region, f["properties"]["uid"]) for m, km in zip(mid, length)]
     return rows
 
