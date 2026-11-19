@@ -37,6 +37,7 @@
 </header>
 <div id="map"></div>
 <main>
+  <p class="bar" id="dates"></p>
   <div class="bar">
     <div class="legend">
       Chlorophyll (mg/m³):
@@ -48,7 +49,7 @@
     <div id="downloads"></div>
   </div>
   <ul id="list"></ul>
-  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA VIIRS. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Bearings and distances are straight-line from the harbour to the zone centre. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
+  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS near real time. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Bearings and distances are straight-line from the harbour to the zone centre. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
 </main>
 <script>
 const SST_RANGE = "SST 26 – 32 °C";
@@ -125,6 +126,9 @@ function zoomToRegion() {
 
 async function loadDate() {
   const date = dateSelect.value;
+  const entry = index.dates.find(d => d.date === date);
+  document.getElementById("dates").textContent =
+    `SST ${entry.sst_date} · Chlorophyll: 7-day composite dated ${entry.chl_date}`;
   const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
   features = geojson.features;
   zoneLayer.clearLayers().addData(geojson);

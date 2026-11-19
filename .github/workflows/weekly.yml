@@ -23,8 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Run pipeline for the newest chlorophyll week
-        run: uv run run.py last last
+      - name: Run pipeline for the newest SST day
+        run: uv run run.py last
       - name: Build site
         run: uv run site.py
       - name: Commit site

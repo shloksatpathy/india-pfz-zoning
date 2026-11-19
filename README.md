@@ -16,7 +16,7 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 | Variable | ERDDAP dataset | Resolution | Cadence |
 |---|---|---|---|
 | SST | `jplMURSST41` (MUR SST v4.1) | 0.01° | Daily |
-| Chlorophyll-a | `noaacwNPPVIIRSSQchlaWeekly` (VIIRS SNPP) | ~0.0375° | Weekly |
+| Chlorophyll-a | `noaacwN20VIIRSchlaWeekly` (NOAA-20 VIIRS, near real time) | ~0.0375° | 7-day composite, new date daily |
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
@@ -46,7 +46,7 @@ india-pfz-zoning/
 ├── regions.py     # coastal region bounding boxes
 ├── fetch.py       # download SST and chlorophyll from ERDDAP
 ├── pfz.py         # front detection + chlorophyll filter -> zones
-├── run.py         # batch runner over weekly chlorophyll dates
+├── run.py         # batch runner: SST date + newest chlorophyll on or before it
 ├── harbours.py    # fishing harbour coordinates for advisory text
 ├── web/index.html # Leaflet map page reading outputs/
 ├── site.py        # builds docs/site/ (latest 8 weeks + map page)
@@ -56,17 +56,18 @@ india-pfz-zoning/
 ## Usage
 
 ```
-uv run fetch.py 2026-10-08
-uv run pfz.py 2026-10-08
+uv run run.py last
 ```
 
-The date must be covered by both datasets (chlorophyll lags SST by a few weeks).
+runs the newest SST day with the newest chlorophyll composite on or before it (chlorophyll is usually 4–10 days behind SST). Outputs go to `outputs/<SST date>/`, and `outputs/index.json` lists every date with its SST date, chlorophyll date and zone counts per region.
 
-To process every weekly chlorophyll date in a range and write `outputs/index.json` (dates with zone counts per region):
+For a range, every 7th SST day counting back from the end date:
 
 ```
-uv run run.py 2026-09-03 2026-10-08
+uv run run.py 2026-09-29 2026-11-17
 ```
+
+Single steps take both dates: `uv run fetch.py 2026-11-17 2026-11-09`, then `uv run pfz.py 2026-11-17 2026-11-09`.
 
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
@@ -84,9 +85,9 @@ uv run site.py
 python -m http.server -d docs/site
 ```
 
-A weekly GitHub Actions workflow processes the newest chlorophyll week, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages.
+A weekly GitHub Actions workflow processes the newest SST day, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages.
 
-## Example output (2026-10-08)
+## Example output (2026-10-08, earlier science-quality chlorophyll)
 
 All of India: SST with fronts outlined (left), chlorophyll-a (middle), and pixels that are both a front and productive water (right).
 
@@ -112,7 +113,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Milestones 1–3 and 5–8 of [PLAN.md](PLAN.md) done, plus EEZ clipping and a first threshold tuning pass. Comparison with INCOIS advisories is pending: no downloadable archive of past advisories was found.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestone 1 (near-real-time chlorophyll) is done; next are advisory points per zone and validation against INCOIS advisories.
 
 ## References
 

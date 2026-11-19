@@ -28,9 +28,9 @@ EARTH_KM = 6371.0
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
-def load(date):
-    sst = xr.open_dataset(f"data/sst_{date}.nc").analysed_sst.squeeze("time").sortby("latitude")
-    chl = xr.open_dataset(f"data/chl_{date}.nc").chlor_a.squeeze(["time", "altitude"]).sortby("latitude")
+def load(sst_date, chl_date):
+    sst = xr.open_dataset(f"data/sst_{sst_date}.nc").analysed_sst.squeeze("time").sortby("latitude")
+    chl = xr.open_dataset(f"data/chl_n20_{chl_date}.nc").chlor_a.squeeze(["time", "altitude"]).sortby("latitude")
     chl = chl.interp_like(sst, method="nearest")
     depth = -xr.open_dataset("data/etopo.nc").altitude.sortby("latitude")
     return sst, chl, depth
@@ -140,7 +140,7 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
 FIELDS = ["id", "region", "lat", "lon", "area_km2", "sst", "chl", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
-def write_tables(out, zones):
+def write_tables(out, zones, sst_date, chl_date):
     rows = [{k: v for k, v in z.items() if k != "outline"} for z in zones]
     with open(out / "zones.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
@@ -156,7 +156,7 @@ def write_tables(out, zones):
         for z, row in zip(zones, rows)
     ]
     with open(out / "zones.geojson", "w") as f:
-        json.dump({"type": "FeatureCollection", "features": features}, f)
+        json.dump({"type": "FeatureCollection", "sst_date": sst_date, "chl_date": chl_date, "features": features}, f)
 
 
 def plot_region(out, date, name, sst, chl, labels, zones):
@@ -216,24 +216,24 @@ def write_overlays(out, sst, chl):
     plt.imsave(out / "chl.png", log_chl, cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1])
 
 
-def run(date):
-    out = Path("outputs") / date
+def run(sst_date, chl_date):
+    out = Path("outputs") / sst_date
     out.mkdir(parents=True, exist_ok=True)
 
-    sst, chl, depth = load(date)
+    sst, chl, depth = load(sst_date, chl_date)
     ocean = sst.notnull() & eez_mask(sst)
     grad = sst_gradient(sst)
     pfz = (grad >= GRAD_MIN) & (chl >= CHL_MIN) & ocean
     labels, ids = label_zones(pfz, ocean)
     zones = describe_zones(sst, chl, depth, pfz, labels, ids)
 
-    plot_check(out, date, sst, grad, chl, pfz)
-    write_tables(out, zones)
+    plot_check(out, sst_date, sst, grad, chl, pfz)
+    write_tables(out, zones, sst_date, chl_date)
     write_overlays(out, sst, chl)
     for name in REGIONS:
-        plot_region(out, date, name, sst, chl, labels, zones)
+        plot_region(out, sst_date, name, sst, chl, labels, zones)
 
-    print(f"{len(zones)} zones written to {out}")
+    print(f"{len(zones)} zones written to {out} (chlorophyll {chl_date})")
     for name in REGIONS:
         count = sum(z["region"] == name for z in zones)
         print(f"  {name}: {count}")
@@ -241,4 +241,4 @@ def run(date):
 
 
 if __name__ == "__main__":
-    run(sys.argv[1])
+    run(sys.argv[1], sys.argv[2])

@@ -61,59 +61,131 @@
  },
  "dates": [
   {
-   "date": "2026-09-03",
-   "zones": 64,
+   "date": "2026-09-29",
+   "sst_date": "2026-09-29",
+   "chl_date": "2026-09-29",
+   "zones": 118,
    "regions": {
-    "Gujarat": 2,
+    "Gujarat": 23,
     "Maharashtra & Goa": 9,
-    "Karnataka & Kerala": 22,
-    "Lakshadweep": 10,
-    "Tamil Nadu & Puducherry": 9,
-    "Andhra Pradesh": 11,
-    "Odisha & West Bengal": 1,
-    "Andaman & Nicobar": 0
+    "Karnataka & Kerala": 23,
+    "Lakshadweep": 11,
+    "Tamil Nadu & Puducherry": 13,
+    "Andhra Pradesh": 33,
+    "Odisha & West Bengal": 4,
+    "Andaman & Nicobar": 2
    }
   },
   {
-   "date": "2026-09-24",
-   "zones": 25,
+   "date": "2026-10-06",
+   "sst_date": "2026-10-06",
+   "chl_date": "2026-10-06",
+   "zones": 78,
    "regions": {
-    "Gujarat": 20,
-    "Maharashtra & Goa": 4,
-    "Karnataka & Kerala": 0,
-    "Lakshadweep": 1,
-    "Tamil Nadu & Puducherry": 0,
-    "Andhra Pradesh": 0,
-    "Odisha & West Bengal": 0,
-    "Andaman & Nicobar": 0
+    "Gujarat": 12,
+    "Maharashtra & Goa": 7,
+    "Karnataka & Kerala": 13,
+    "Lakshadweep": 5,
+    "Tamil Nadu & Puducherry": 8,
+    "Andhra Pradesh": 25,
+    "Odisha & West Bengal": 6,
+    "Andaman & Nicobar": 2
    }
   },
   {
-   "date": "2026-10-01",
-   "zones": 81,
+   "date": "2026-10-13",
+   "sst_date": "2026-10-13",
+   "chl_date": "2026-10-13",
+   "zones": 74,
+   "regions": {
+    "Gujarat": 6,
+    "Maharashtra & Goa": 11,
+    "Karnataka & Kerala": 8,
+    "Lakshadweep": 6,
+    "Tamil Nadu & Puducherry": 2,
+    "Andhra Pradesh": 24,
+    "Odisha & West Bengal": 15,
+    "Andaman & Nicobar": 2
+   }
+  },
+  {
+   "date": "2026-10-20",
+   "sst_date": "2026-10-20",
+   "chl_date": "2026-10-20",
+   "zones": 44,
    "regions": {
     "Gujarat": 9,
-    "Maharashtra & Goa": 12,
-    "Karnataka & Kerala": 4,
-    "Lakshadweep": 6,
-    "Tamil Nadu & Puducherry": 7,
-    "Andhra Pradesh": 35,
-    "Odisha & West Bengal": 2,
-    "Andaman & Nicobar": 6
+    "Maharashtra & Goa": 2,
+    "Karnataka & Kerala": 0,
+    "Lakshadweep": 4,
+    "Tamil Nadu & Puducherry": 0,
+    "Andhra Pradesh": 11,
+    "Odisha & West Bengal": 17,
+    "Andaman & Nicobar": 1
    }
   },
   {
-   "date": "2026-10-08",
-   "zones": 83,
+   "date": "2026-10-27",
+   "sst_date": "2026-10-27",
+   "chl_date": "2026-10-27",
+   "zones": 36,
    "regions": {
     "Gujarat": 13,
-    "Maharashtra & Goa": 2,
-    "Karnataka & Kerala": 0,
+    "Maharashtra & Goa": 4,
+    "Karnataka & Kerala": 8,
+    "Lakshadweep": 0,
+    "Tamil Nadu & Puducherry": 6,
+    "Andhra Pradesh": 0,
+    "Odisha & West Bengal": 5,
+    "Andaman & Nicobar": 0
+   }
+  },
+  {
+   "date": "2026-11-03",
+   "sst_date": "2026-11-03",
+   "chl_date": "2026-11-03",
+   "zones": 61,
+   "regions": {
+    "Gujarat": 12,
+    "Maharashtra & Goa": 20,
+    "Karnataka & Kerala": 4,
+    "Lakshadweep": 7,
+    "Tamil Nadu & Puducherry": 4,
+    "Andhra Pradesh": 6,
+    "Odisha & West Bengal": 5,
+    "Andaman & Nicobar": 3
+   }
+  },
+  {
+   "date": "2026-11-10",
+   "sst_date": "2026-11-10",
+   "chl_date": "2026-11-09",
+   "zones": 48,
+   "regions": {
+    "Gujarat": 15,
+    "Maharashtra & Goa": 6,
+    "Karnataka & Kerala": 6,
+    "Lakshadweep": 0,
+    "Tamil Nadu & Puducherry": 2,
+    "Andhra Pradesh": 6,
+    "Odisha & West Bengal": 12,
+    "Andaman & Nicobar": 1
+   }
+  },
+  {
+   "date": "2026-11-17",
+   "sst_date": "2026-11-17",
+   "chl_date": "2026-11-09",
+   "zones": 51,
+   "regions": {
+    "Gujarat": 13,
+    "Maharashtra & Goa": 7,
+    "Karnataka & Kerala": 3,
     "Lakshadweep": 1,
-    "Tamil Nadu & Puducherry": 5,
-    "Andhra Pradesh": 42,
-    "Odisha & West Bengal": 16,
-    "Andaman & Nicobar": 4
+    "Tamil Nadu & Puducherry": 7,
+    "Andhra Pradesh": 3,
+    "Odisha & West Bengal": 8,
+    "Andaman & Nicobar": 9
    }
   }
  ]
