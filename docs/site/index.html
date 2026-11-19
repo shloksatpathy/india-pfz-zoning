@@ -25,6 +25,8 @@
   ul { list-style: none; margin: 0; padding: 0; }
   li { padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; min-height: 44px; }
   li b { display: block; }
+  li.zone { cursor: pointer; border-bottom: none; padding-bottom: 4px; }
+  li.point { padding: 10px 4px 10px 20px; }
   li small { color: var(--muted); }
   .empty { padding: 16px 4px; color: var(--muted); }
 </style>
@@ -64,7 +66,20 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const dateSelect = document.getElementById("date");
 const regionSelect = document.getElementById("region");
 const list = document.getElementById("list");
-const zoneLayer = L.geoJSON(null, { style: zoneStyle, onEachFeature: (f, layer) => layer.bindPopup(popup(f.properties)) }).addTo(map);
+const POINT_ZOOM = 7;  // advisory points show from this zoom in
+const zoneLayer = L.geoJSON(null, {
+  filter: f => f.properties.kind !== "point",
+  style: f => ({ color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 }),
+  onEachFeature: (f, layer) => layer.bindPopup(popup(f.properties)),
+}).addTo(map);
+const pointLayer = L.geoJSON(null, {
+  filter: f => f.properties.kind === "point",
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: 1 }),
+  onEachFeature: (f, layer) => layer.bindPopup(pointPopup(f.properties)),
+});
+map.on("zoomend", () => {
+  if (map.getZoom() >= POINT_ZOOM) pointLayer.addTo(map); else pointLayer.remove();
+});
 const sstLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
 const chlLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
 const eezLayer = L.geoJSON(null, { style: { color: "#555", weight: 1, dashArray: "4 4", fill: false } });
@@ -82,39 +97,53 @@ function chlColor(chl) {
   return chl < 0.5 ? "#3b528b" : chl < 1 ? "#21918c" : chl < 3 ? "#5ec962" : "#fde725";
 }
 
-function zoneStyle(f) {
-  return { color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 };
+function popup(p) {
+  return `<b>Zone ${p.id}, ${p.region}</b><br>${p.points} points · nearest: ${p.advisory}<br>` +
+    `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³`;
 }
 
-function popup(p) {
-  return `<b>${p.advisory}</b><br>Zone ${p.id}, ${p.region}<br>` +
-    `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E<br>` +
-    `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³ · Depth ${p.depth_m} m`;
+function pointPopup(p) {
+  return `<b>${p.advisory}</b><br>Zone ${p.zone_id}, point ${p.point} · ${p.region}<br>` +
+    `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E`;
+}
+
+function focus(f) {
+  const layers = [...zoneLayer.getLayers(), ...pointLayer.getLayers()];
+  const layer = layers.find(l => l.feature === f);
+  if (layer.getBounds) {
+    map.fitBounds(layer.getBounds(), { maxZoom: 9 });
+  } else {
+    map.setView(layer.getLatLng(), 9);
+  }
+  map.once("moveend", () => layer.openPopup());
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function showList() {
   const region = regionSelect.value;
-  const shown = features.filter(f => !region || f.properties.region === region)
+  const zones = features.filter(f => f.properties.kind !== "point" && (!region || f.properties.region === region))
     .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
   list.innerHTML = "";
-  if (shown.length === 0) {
+  if (zones.length === 0) {
     list.innerHTML = `<li class="empty">No zones for this date and region.</li>`;
     return;
   }
-  for (const f of shown) {
-    const p = f.properties;
+  for (const zone of zones) {
+    const p = zone.properties;
     const li = document.createElement("li");
-    li.innerHTML = `<b>${p.advisory}</b><small>Zone ${p.id} · ${p.region} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³</small>`;
-    li.onclick = () => {
-      zoneLayer.eachLayer(layer => {
-        if (layer.feature === f) {
-          map.fitBounds(layer.getBounds(), { maxZoom: 9 });
-          layer.openPopup();
-        }
-      });
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    };
+    li.className = "zone";
+    li.innerHTML = `<small>Zone ${p.id} · ${p.region} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³</small>`;
+    li.onclick = () => focus(zone);
     list.appendChild(li);
+    const points = features.filter(f => f.properties.kind === "point" && f.properties.zone_id === p.id)
+      .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
+    for (const pt of points) {
+      const item = document.createElement("li");
+      item.className = "point";
+      item.innerHTML = `<b>${pt.properties.advisory}</b>`;
+      item.onclick = () => focus(pt);
+      list.appendChild(item);
+    }
   }
 }
 
@@ -132,10 +161,11 @@ async function loadDate() {
   const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
   features = geojson.features;
   zoneLayer.clearLayers().addData(geojson);
+  pointLayer.clearLayers().addData(geojson);
   sstLayer.setUrl(`outputs/${date}/sst.png`).setBounds(index.bounds);
   chlLayer.setUrl(`outputs/${date}/chl.png`).setBounds(index.bounds);
   document.getElementById("downloads").innerHTML =
-    `Download: <a href="outputs/${date}/zones.csv" download>CSV</a> · <a href="outputs/${date}/zones.geojson" download>GeoJSON</a>`;
+    `Download: <a href="outputs/${date}/zones.csv" download>Zones CSV</a> · <a href="outputs/${date}/points.csv" download>Points CSV</a> · <a href="outputs/${date}/zones.geojson" download>GeoJSON</a>`;
   showList();
 }
 

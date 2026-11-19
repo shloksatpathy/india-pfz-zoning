@@ -24,6 +24,8 @@ KM_PER_DEG = 111.32
 SST_RANGE = (26, 32)  # °C, overlay colour scale (web/index.html legend uses the same)
 LOG_CHL_RANGE = (-1.5, 1)  # log10 mg/m³, overlay colour scale
 OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
+POINT_TILE_KM = 30  # one advisory point per tile of this size
+MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
 EARTH_KM = 6371.0
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
@@ -96,6 +98,38 @@ def outline(labels, label, box, lat, lon):
     return ring
 
 
+def advisory(lat, lon, depth):
+    depth_m = int(depth.sel(latitude=lat, longitude=lon, method="nearest"))
+    harbour, km, direction = nearest_harbour(lat, lon)
+    return {
+        "lat": round(lat, 3),
+        "lon": round(lon, 3),
+        "depth_m": depth_m,
+        "harbour": harbour,
+        "bearing": direction,
+        "distance_km": round(float(km)),
+        "advisory": f"{harbour}: {direction}, {km:.0f} km, depth {depth_m} m",
+    }
+
+
+def nearest_pixel(plat, plon, lat, lon):
+    i = np.argmin((plat - lat) ** 2 + (plon - lon) ** 2)
+    return float(plat[i]), float(plon[i])
+
+
+def tile_points(plat, plon):
+    ty = np.floor(plat * KM_PER_DEG / POINT_TILE_KM)
+    tx = np.floor(plon * KM_PER_DEG * np.cos(np.deg2rad(plat.mean())) / POINT_TILE_KM)
+    tiles, tile_of, counts = np.unique(np.column_stack([ty, tx]), axis=0, return_inverse=True, return_counts=True)
+    points = []
+    for t in range(len(tiles)):
+        if counts[t] < MIN_TILE_PIXELS and t != np.argmax(counts):
+            continue
+        inside = tile_of.ravel() == t
+        points.append(nearest_pixel(plat[inside], plon[inside], plat[inside].mean(), plon[inside].mean()))
+    return points
+
+
 def describe_zones(sst, chl, depth, pfz, labels, ids):
     lat = sst.latitude.values
     lon = sst.longitude.values
@@ -104,48 +138,61 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
     cell_km2 = dlat * dlon
 
     core = labels * pfz.values
-    centers = ndimage.center_of_mass(labels > 0, labels, ids)
     areas = ndimage.sum(cell_km2, labels, ids)
     mean_sst = ndimage.mean(sst.values, core, ids)
     mean_chl = ndimage.mean(chl.values, core, ids)
     boxes = ndimage.find_objects(labels)
 
     zones = []
-    for label, (row, col), area, s, c in zip(ids, centers, areas, mean_sst, mean_chl):
-        zlat = float(np.interp(row, np.arange(len(lat)), lat))
-        zlon = float(np.interp(col, np.arange(len(lon)), lon))
+    for label, area, s, c in zip(ids, areas, mean_sst, mean_chl):
+        rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
+        plat = lat[boxes[label - 1][0]][rows]
+        plon = lon[boxes[label - 1][1]][cols]
+        zlat, zlon = nearest_pixel(plat, plon, plat.mean(), plon.mean())
         region = region_of(zlat, zlon)
         if region is None:
             continue
-        depth_m = int(depth.sel(latitude=zlat, longitude=zlon, method="nearest"))
-        harbour, km, direction = nearest_harbour(zlat, zlon)
+        zone_id = len(zones) + 1
+        points = [
+            {"zone_id": zone_id, "point": n + 1, "region": region, **advisory(plat_, plon_, depth)}
+            for n, (plat_, plon_) in enumerate(tile_points(plat, plon))
+        ]
+        closest = min(points, key=lambda pt: pt["distance_km"])
         zones.append({
-            "id": len(zones) + 1,
+            "id": zone_id,
             "region": region,
             "lat": round(zlat, 3),
             "lon": round(zlon, 3),
             "area_km2": round(float(area), 1),
             "sst": round(float(s), 2),
             "chl": round(float(c), 3),
-            "depth_m": depth_m,
-            "harbour": harbour,
-            "bearing": direction,
-            "distance_km": round(float(km)),
-            "advisory": f"{harbour}: {direction}, {km:.0f} km, depth {depth_m} m",
+            "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
+            "points": len(points),
+            "harbour": closest["harbour"],
+            "bearing": closest["bearing"],
+            "distance_km": closest["distance_km"],
+            "advisory": closest["advisory"],
             "outline": outline(labels, label, boxes[label - 1], lat, lon),
+            "point_list": points,
         })
     return zones
 
 
-FIELDS = ["id", "region", "lat", "lon", "area_km2", "sst", "chl", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
+FIELDS = ["id", "region", "lat", "lon", "area_km2", "sst", "chl", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date):
-    rows = [{k: v for k, v in z.items() if k != "outline"} for z in zones]
+    rows = [{k: z[k] for k in FIELDS} for z in zones]
+    points = [pt for z in zones for pt in z["point_list"]]
     with open(out / "zones.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    with open(out / "points.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=POINT_FIELDS)
+        writer.writeheader()
+        writer.writerows(points)
 
     features = [
         {
@@ -154,6 +201,13 @@ def write_tables(out, zones, sst_date, chl_date):
             "properties": row,
         }
         for z, row in zip(zones, rows)
+    ] + [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [pt["lon"], pt["lat"]]},
+            "properties": {"kind": "point", **pt},
+        }
+        for pt in points
     ]
     with open(out / "zones.geojson", "w") as f:
         json.dump({"type": "FeatureCollection", "sst_date": sst_date, "chl_date": chl_date, "features": features}, f)

@@ -113,7 +113,7 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
 ### Milestones
 
 1. ~~NRT chlorophyll and separate SST / chlorophyll dates; site rebuilt from NRT.~~ Done 2026-11-19: 8 weeks 2026-09-29 – 2026-11-17, zones per date 118, 78, 74, 44, 36, 61, 48, 51.
-2. Advisory points per zone (`points.csv`, map markers, grouped list).
+2. ~~Advisory points per zone (`points.csv`, map markers, grouped list).~~ Done 2026-11-19: 112 – 493 points per date; the 4,361 km² Gujarat zone on 2026-11-17 has 12 points from Veraval to Porbandar. Points show on the map from zoom 7.
 3. `incois.py` archiving live advisories, daily workflow job.
 4. `validate.py` comparison metrics and maps for the first overlapping dates.
 5. Per-region thresholds tuned from the comparison.

@@ -50,7 +50,7 @@ india-pfz-zoning/
 ├── harbours.py    # fishing harbour coordinates for advisory text
 ├── web/index.html # Leaflet map page reading outputs/
 ├── site.py        # builds docs/site/ (latest 8 weeks + map page)
-└── outputs/       # per-date maps (PNG), zones.csv, zones.geojson
+└── outputs/       # per-date maps (PNG), zones.csv, points.csv, zones.geojson
 ```
 
 ## Usage
@@ -72,8 +72,9 @@ Single steps take both dates: `uv run fetch.py 2026-11-17 2026-11-09`, then `uv 
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `zones.csv`: one row per zone (region, centroid lat/lon, area_km2, sst, chl, depth_m, nearest harbour, bearing, distance_km, advisory text such as `Veraval: SW, 45 km, depth 60 m`)
-- `zones.geojson`: zone outlines as polygons with the same properties
+- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth and advisory text such as `Veraval: SW, 45 km, depth 60 m`
+- `zones.csv`: one row per zone (region, an interior lat/lon, area_km2, sst, chl, depth_m, number of points, and the advisory of the point closest to its harbour)
+- `zones.geojson`: zone outlines as polygons plus the advisory points (`kind: "point"`)
 - `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
 
 ## Web map
@@ -113,7 +114,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestone 1 (near-real-time chlorophyll) is done; next are advisory points per zone and validation against INCOIS advisories.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1 (near-real-time chlorophyll) and 2 (advisory points per zone) are done; next is archiving INCOIS advisories for validation.
 
 ## References
 
