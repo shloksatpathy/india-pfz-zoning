@@ -35,34 +35,69 @@ Current parameters (`pfz.py`):
 
 Zone counts so far: 2026-09-03: 64, 2026-09-24: 25, 2026-10-01: 81, 2026-10-08: 83.
 
-## Phase 2: Validation and better zones
+**Problems found (2026-11-19):**
+- **The map is weeks out of date.** The science-quality chlorophyll ends at 2026-10-08, ~6 weeks old, while MUR SST is current to 2026-11-17.
+- **Big zones can't be acted on.** On 2026-10-08, 24 of 83 zones are over 1,000 km². Zone 77 (Gujarat, 13,939 km², 202 × 264 km) gets one line: "Jakhau: S, 79 km, depth 28 m". A curved zone's centroid can also fall outside the zone.
 
-### Step 1: Archive INCOIS advisories
+## Phase 2: Fresh data, actionable zones, validation
+
+### Step 1: Fresher chlorophyll
+
+Chlorophyll options checked on 2026-11-19 (ocean coverage = valid pixels over the India box's ocean):
+
+| Dataset (CoastWatch ERDDAP) | Newest | Ocean coverage |
+|---|---|---|
+| `noaacwNPPVIIRSSQchlaWeekly`: S-NPP science quality, weekly (current) | 2026-10-08 | 63% |
+| `noaacwN20VIIRSchlaWeekly`: NOAA-20 near real time, 7-day rolling | 2026-11-09 | ~87% |
+| `nesdisVHNnoaa20chlaDaily`: NOAA-20 near real time, daily | 2026-11-15 | 10 – 47% per day |
+
+- `fetch.py`: switch `CHL_URL` to `noaacwN20VIIRSchlaWeekly`. Same variable (`chlor_a`) and dimensions (`time, altitude, latitude, longitude`), so only the dataset ID changes.
+- **Separate dates:** SST = newest MUR day, chlorophyll = newest NRT composite. The output folder is named by the SST date. `index.json` records `sst_date` and `chl_date`, and the page shows both.
+- `run.py`: the NRT dataset is a 7-day composite with a new time step every day. History runs take every 7th date; the weekly job uses `last`.
+- Rebuild `docs/site` from the NRT source so all 8 weeks come from one product (the current 4 dates are science quality).
+- Expected age after each Tuesday run: SST ~2 days, chlorophyll ~4 – 10 days. After the first runs, check whether NRT updates arrive often enough to justify a second weekly run.
+- Keep the science-quality dataset as a known alternative for validation reruns: higher quality, ~6 weeks behind.
+
+### Step 2: Several advisory points per zone
+
+One centre point cannot describe a zone 200 km across. INCOIS advisories list several positions per sector; do the same.
+
+- Tile each zone's pixels on a ~30 km grid (`POINT_TILE_KM = 30`). Each tile with enough zone pixels gets one point: the zone pixel nearest that tile's pixel centroid, so the point always lies inside the zone.
+- Each point gets its own harbour, bearing, distance and depth, reusing `nearest_harbour` and the ETOPO depth lookup in `pfz.py`.
+- Each zone's `lat`/`lon` becomes an interior point (the zone pixel nearest the centroid) instead of the raw centroid.
+- Outputs:
+  - `points.csv`: one row per point (zone_id, point, lat, lon, harbour, bearing, distance_km, depth_m, advisory).
+  - `zones.geojson`: zone polygons plus Point features (`kind: "point"`) with the same properties.
+  - `zones.csv`: still one row per zone; its `advisory` is the point closest to its harbour.
+- Web page: point markers on the map; the list is grouped by zone, with one tappable line per point.
+- ~80 zones → a few hundred points; keep per-date data under ~1 MB.
+
+### Step 3: Archive INCOIS advisories
 
 INCOIS has no archive of past advisories, so collect the live ones from now on.
 
 - The advisory pages (https://incois.gov.in/MarineFisheries/PfzAdvisory, `/TextData`) load their content with JavaScript. Find the request the page makes for the advisory data (browser network tab) and fetch that directly.
 - `incois.py`: download the current advisory per sector, parse each zone into region / harbour / bearing / distance / depth (and lat/lon where given), save to `validation/incois/<date>.csv`.
-- Add it to the weekly workflow as a separate daily job, so every issued advisory is kept, and commit `validation/incois/`.
-- INCOIS advisories are daily and use near-real-time data; ours use the newest weekly chlorophyll, which lags by several weeks. Compare by matching dates once our pipeline reaches an archived date.
+- Add it to the workflow as a separate daily job, so every issued advisory is kept, and commit `validation/incois/`.
+- With NRT chlorophyll (step 1), our dates trail INCOIS by days rather than weeks, so archived advisories can be compared within about 10 days.
 
-### Step 2: Comparison (`validate.py`)
+### Step 4: Comparison (`validate.py`)
 
 - For a date with both outputs, per region:
-  - share of INCOIS zone points that fall inside, or within 10 km of, one of our zone polygons (hit rate)
-  - share of our zone area within 10 km of an INCOIS point (precision proxy)
-  - zone counts side by side
+  - share of INCOIS points that fall inside, or within 10 km of, one of our zone polygons (hit rate)
+  - share of our advisory points (step 2) within 10 km of an INCOIS point (precision proxy)
+  - zone and point counts side by side
 - Write `validation/<date>.csv` and a summary table per region.
-- Map per region: our polygons plus INCOIS points, for visual checks.
+- Map per region: our polygons and points plus INCOIS points, for visual checks.
 
-### Step 3: Per-region thresholds
+### Step 5: Per-region thresholds
 
 - Move `GRAD_MIN` and `CHL_MIN` into `regions.py` per region (default to current values).
 - Sweep both thresholds per region over the archived dates; pick values that maximise hit rate without zone counts far above INCOIS.
-- Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water).
+- Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water). Tighter thresholds there also shrink the oversized zones.
 - Record the sweep table and chosen values here, as in phase 1.
 
-### Step 4: Region assignment by coast
+### Step 6: Region assignment by coast
 
 Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Kerala longitudes; a zone is given to the first box holding its centroid).
 
@@ -70,28 +105,31 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
 - Keep the boxes only for map zoom and region plots.
 - Drop zones whose nearest harbour is beyond a cutoff (e.g. 300 km) instead of the `region_of` box test.
 
-### Step 5: Zone polygon holes
+### Step 7: Zone polygon holes
 
 - `outline` keeps only the longest ring. Keep all rings from the contour: outer ring plus holes (rings inside the outer one) as a GeoJSON Polygon; separate outer rings as a MultiPolygon.
 - Check `zones.geojson` size stays under ~300 KB per date.
 
 ### Milestones
 
-1. `incois.py` archiving live advisories, daily workflow job.
-2. `validate.py` comparison metrics and maps for the first overlapping dates.
-3. Per-region thresholds tuned from the comparison.
-4. Region assignment by nearest harbour.
-5. Polygons with holes.
+1. NRT chlorophyll and separate SST / chlorophyll dates; site rebuilt from NRT.
+2. Advisory points per zone (`points.csv`, map markers, grouped list).
+3. `incois.py` archiving live advisories, daily workflow job.
+4. `validate.py` comparison metrics and maps for the first overlapping dates.
+5. Per-region thresholds tuned from the comparison.
+6. Region assignment by nearest harbour.
+7. Polygons with holes.
 
 ## Known limitations
 
 - **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
 - **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs are produced but not actionable.
-- **Chlorophyll lag:** the newest weekly composite is often 4 – 6 weeks old (2026-10-08 on 2026-11-15), so the published map is not current.
-- **Distances are straight-line** from harbour to zone centroid and can cross land (e.g. around Kathiawar or Sri Lanka).
+- **Near-real-time chlorophyll:** the NRT composite is 4 – 10 days old and lower quality than the science-quality product; SST and chlorophyll dates differ by up to ~1 week.
+- **Advisory points are tile-based:** they are spread over the zone on a ~30 km grid, not traced along the front line.
+- **Distances are straight-line** from harbour to point and can cross land (e.g. around Kathiawar or Sri Lanka).
 - **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap.
 
 ## Later
 
-- Fresher data: near-real-time daily or 3-day VIIRS chlorophyll to cut the lag.
+- Rolling median of NOAA-20 daily NRT chlorophyll (~4 days old) if the 7-day NRT composite proves too stale.
 - Regional languages for advisory text and the page; SMS / WhatsApp alerts.
