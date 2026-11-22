@@ -124,7 +124,7 @@ Hit rate is 0 at every setting.
 
    Ranking plus a cap doubles precision where it applies (Gujarat, Maharashtra & Goa) with 5 – 10 points per region instead of 20 – 50. `grad` (front sharpness) is the best score in most regions, not `grad × front_km`. Karnataka & Kerala, Tamil Nadu and Andaman & Nicobar reach a hit rate of 0.5 only with weak thresholds and no cap. Three days with one stalled chlorophyll composite: not yet used to change values.
 5. Final per-region values (≈ 2026-12-09 or later); site rebuilt.
-6. Lakshadweep investigation.
+6. ~~Lakshadweep investigation.~~ Done 2026-11-22. Along the 8 INCOIS Lakshadweep lines of 2026-11-18 – 20, our SST gradient has a median of 0.005 – 0.023 °C/km (below even 0.03), chlorophyll is low (median 0.15 – 0.28 mg/m³) and missing under cloud on about half the line length (0 – 100% per line). Lakshadweep-only thresholds of 0.01 – 0.02 °C/km and 0.1 – 0.15 mg/m³ reach hit rates of 0.6 – 1.0, but only by marking 30,000 – 166,000 km² of open sea with precision ≤ 0.02. Decision: keep the regular thresholds there and record it as a limitation; INCOIS's island advisories follow features our front + chlorophyll method does not detect.
 
 ## Known limitations
 
@@ -135,6 +135,7 @@ Hit rate is 0 at every setting.
 - **Advisory points are tile-based:** spread over the zone on a ~30 km grid, not traced along the front line.
 - **Distances are straight-line** from harbour to point and can cross land (e.g. around Kathiawar or Sri Lanka).
 - **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap; zones off Daman count as Maharashtra & Goa (nearest listed harbour Mumbai).
+- **Lakshadweep:** INCOIS lines there follow very weak SST gradients and low or cloud-masked chlorophyll; our method finds no matching zones (hit rate 0 at every useful setting).
 - **INCOIS comparison is one-sided:** INCOIS lines are drawn by analysts and may skip valid fronts, so low precision is not only our error.
 
 ## Later
