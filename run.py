@@ -11,6 +11,7 @@ from regions import BBOX, REGIONS
 SST_TIMES = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.csv?time[(last)]"
 CHL_TIMES = "https://coastwatch.noaa.gov/erddap/griddap/noaacwN20VIIRSchlaWeekly.csv?time[({start}):1:(last)]"
 STEP_DAYS = 7
+CHL_LOOKBACK_DAYS = 60  # chlorophyll can trail SST by more than a week
 
 
 def erddap_dates(url):
@@ -25,7 +26,7 @@ def date_pairs(start, end):
     while end >= date.fromisoformat(start):
         sst_dates.append(end.isoformat())
         end -= timedelta(days=STEP_DAYS)
-    first = date.fromisoformat(sst_dates[-1]) - timedelta(days=STEP_DAYS)
+    first = date.fromisoformat(sst_dates[-1]) - timedelta(days=CHL_LOOKBACK_DAYS)
     chl_dates = erddap_dates(CHL_TIMES.format(start=first))
     return [(s, max(c for c in chl_dates if c <= s)) for s in reversed(sst_dates)]
 
