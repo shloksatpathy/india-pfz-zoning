@@ -38,6 +38,16 @@ def load(sst_date, chl_date):
     return sst, chl, depth
 
 
+def daily_chl(sst, days):
+    """Per-pixel median of daily chlorophyll files [(sensor, date)] on the SST grid."""
+    layers = [
+        xr.open_dataset(f"data/chl_daily_{sensor}_{d}.nc").chlor_a.squeeze(["time", "altitude"])
+        .sortby("latitude").interp_like(sst, method="nearest").astype("float32")
+        for sensor, d in days
+    ]
+    return xr.concat(layers, "layer").median("layer")
+
+
 def km_xy(lon, lat):
     return np.column_stack([lon * KM_PER_DEG * np.cos(np.deg2rad(lat)), lat * KM_PER_DEG])
 

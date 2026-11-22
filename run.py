@@ -1,6 +1,5 @@
 import json
 import sys
-import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -14,12 +13,6 @@ STEP_DAYS = 7
 CHL_LOOKBACK_DAYS = 60  # chlorophyll can trail SST by more than a week
 
 
-def erddap_dates(url):
-    with urllib.request.urlopen(url) as r:
-        lines = r.read().decode().splitlines()[2:]
-    return [line[:10] for line in lines]
-
-
 def date_pairs(start, end):
     end = date.fromisoformat(end)
     sst_dates = []
@@ -27,7 +20,7 @@ def date_pairs(start, end):
         sst_dates.append(end.isoformat())
         end -= timedelta(days=STEP_DAYS)
     first = date.fromisoformat(sst_dates[-1]) - timedelta(days=CHL_LOOKBACK_DAYS)
-    chl_dates = erddap_dates(CHL_TIMES.format(start=first))
+    chl_dates = fetch.erddap_dates(CHL_TIMES.format(start=first))
     return [(s, max(c for c in chl_dates if c <= s)) for s in reversed(sst_dates)]
 
 
@@ -55,7 +48,7 @@ def write_index(root):
 
 if __name__ == "__main__":
     if sys.argv[1] == "last":
-        start = end = erddap_dates(SST_TIMES)[0]
+        start = end = fetch.erddap_dates(SST_TIMES)[0]
     else:
         start, end = sys.argv[1], sys.argv[2]
     for sst_date, chl_date in date_pairs(start, end):

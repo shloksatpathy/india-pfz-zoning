@@ -103,13 +103,21 @@ Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on t
 
 ### Step 5: Final per-region values (carried over from phase 3, ≈ 2026-12-09)
 
-- Needs ~3 weeks of INCOIS archive and the chlorophyll source decided in step 1, since thresholds depend on it.
+- Needs ~3 weeks of INCOIS archive. Chlorophyll source: the weekly composite (step 1 decision); if that changes, retune.
 - Download SST for every archived INCOIS day, rerun `sweep.py` on all of them with the chosen chlorophyll source.
 - Set `THRESHOLDS`, `MAX_POINTS` and the ranking score; regions with fewer than 5 INCOIS days, and Lakshadweep, keep the phase 1 values. Rebuild the 8 published weeks; record the final table and values here.
 
 ### Milestones
 
-1. Multi-sensor 7-day chlorophyll median; comparison with the weekly composite; switch decision.
+1. ~~Multi-sensor 7-day chlorophyll median; comparison with the weekly composite; switch decision.~~ Done 2026-11-22. `fetch.fetch_daily_chl` downloads every available day of the four daily datasets in the 7 days ending at the SST date (`data/chl_daily_<sensor>_<date>.nc`); `pfz.daily_chl` takes the per-pixel median on the SST grid. Comparison at current settings (no cap):
+
+   | INCOIS day | Weekly: age / coverage | Median: age / coverage | OLCI ÷ VIIRS | All hit / prec, weekly | All hit / prec, median |
+   |---|---|---|---|---|---|
+   | 2026-11-18 | 9 d / 83% | 0 d / 97% | 0.84 | 0.22 / 0.14 | 0.21 / 0.11 |
+   | 2026-11-19 | 10 d / 83% | 0 d / 94% | 0.83 | 0.31 / 0.15 | 0.35 / 0.15 |
+   | 2026-11-20 | 11 d / 83% | 1 d / 86% | 0.80 | 0.27 / 0.07 | 0.27 / 0.07 |
+
+   The median is fresher and covers more; scores are a tie (mixed by region: Karnataka & Kerala better, Tamil Nadu worse on 2026-11-20); OLCI reads 16 – 20% lower than VIIRS. Decision: keep the weekly composite in production; the median code stays for a later switch (revisit if the weekly composite stays stalled or once more INCOIS days are archived).
 2. Staleness warning on the page.
 3. Dholai, Pazhayar, Petuaghat from INCOIS landing centres.
 4. Sea-route distances and nearest harbour by sea.
