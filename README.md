@@ -52,6 +52,7 @@ india-pfz-zoning/
 ├── site.py        # builds docs/site/ (latest 8 weeks + map page)
 ├── incois.py      # archives the current INCOIS PFZ lines to validation/incois/
 ├── validate.py    # compares our zones with an archived INCOIS day
+├── sweep.py       # threshold sweep scored against archived INCOIS days
 └── outputs/       # per-date maps (PNG), zones.csv, points.csv, zones.geojson
 ```
 
@@ -116,7 +117,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. Next: per-region thresholds once a few weeks of INCOIS advisories are archived.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. Thresholds are set per region in `regions.py`; `sweep.py` scores threshold combinations against the archive (preliminary results in PLAN.md). Next: choose per-region values once ~3 weeks are archived.
 
 ## References
 

@@ -58,20 +58,17 @@ def our_date(day):
     return best
 
 
-def compare(day):
-    ours = our_date(day)
-    features = json.load(open(f"outputs/{ours}/zones.geojson"))["features"]
-    zones = [f for f in features if f["geometry"]["type"] != "Point"]
-    points = [f["properties"] for f in features if f["geometry"]["type"] == "Point"]
-    segments = incois_segments(f"validation/incois/{day}.geojson")
-
+def score(segments, zones, points):
+    """Per-region rows; zones are features with geometry and properties.region, points have lat, lon, region."""
     seg_lon = np.array([s[0] for s in segments])
     seg_lat = np.array([s[1] for s in segments])
     seg_km = np.array([s[2] for s in segments])
     seg_region = [s[3] for s in segments]
 
-    outline = np.concatenate([ring for f in zones for poly in polygons(f["geometry"]) for ring in poly])
-    near_zone = cKDTree(km_xy(outline[:, 0], outline[:, 1])).query(km_xy(seg_lon, seg_lat))[0] <= NEAR_KM
+    near_zone = np.zeros(len(segments), dtype=bool)
+    if zones:  # a strict threshold in a sweep can leave no zones
+        outline = np.concatenate([ring for f in zones for poly in polygons(f["geometry"]) for ring in poly])
+        near_zone = cKDTree(km_xy(outline[:, 0], outline[:, 1])).query(km_xy(seg_lon, seg_lat))[0] <= NEAR_KM
     for f in zones:
         near_zone |= inside(f["geometry"], np.column_stack([seg_lon, seg_lat]))
 
@@ -93,6 +90,16 @@ def compare(day):
             "our_points": int(p.sum()),
             "precision": round(float(near_line[p].mean()), 2) if p.any() else "",
         })
+    return rows
+
+
+def compare(day):
+    ours = our_date(day)
+    features = json.load(open(f"outputs/{ours}/zones.geojson"))["features"]
+    zones = [f for f in features if f["geometry"]["type"] != "Point"]
+    points = [f["properties"] for f in features if f["geometry"]["type"] == "Point"]
+    segments = incois_segments(f"validation/incois/{day}.geojson")
+    rows = score(segments, zones, points)
 
     out = Path("validation") / f"{day}.csv"
     with open(out, "w", newline="") as f:
@@ -103,14 +110,14 @@ def compare(day):
     for r in rows:
         print("  ".join(f"{v!s:>8}" if k != "region" else f"{v:<24}" for k, v in r.items()))
 
-    plot(day, ours, zones, points, segments, seg_region)
+    plot(day, ours, zones, points, segments)
 
 
-def plot(day, ours, zones, points, segments, seg_region):
+def plot(day, ours, zones, points, segments):
     out = Path("outputs") / "validation" / day
     out.mkdir(parents=True, exist_ok=True)
     lines = json.load(open(f"validation/incois/{day}.geojson"))["features"]
-    for name in sorted({r for r in seg_region if r}):
+    for name in sorted({s[3] for s in segments}):
         lat_min, lat_max, lon_min, lon_max = REGIONS[name]
         fig, ax = plt.subplots(figsize=(8, 8), constrained_layout=True)
         for f in zones:

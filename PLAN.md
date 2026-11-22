@@ -97,6 +97,24 @@ INCOIS has no archive of past advisories, so collect the live ones from now on.
 - Sweep both thresholds per region over the archived dates; pick values that maximise hit rate without zone counts far above INCOIS.
 - Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water). Tighter thresholds there also shrink the oversized zones.
 - Record the sweep table and chosen values here, as in phase 1.
+- `uv run sweep.py <INCOIS dates…>` rebuilds zones for `GRAD_MIN` 0.03 / 0.05 / 0.07 / 0.10 × `CHL_MIN` 0.2 / 0.3 / 0.5 / 1.0 / 2.0 on each date and scores them with `validate.score`; all rows go to `validation/sweep.csv`, and it prints the per-region means over the days on which INCOIS has lines in that region.
+
+**Preliminary sweep (2026-11-22), not yet used to change values.** 3 INCOIS days (2026-11-18 – 20), all with the same stalled NRT chlorophyll (2026-11-09). Mean hit rate / precision / our points per day, at the current `CHL_MIN` 0.3:
+
+| Region (days with INCOIS lines) | grad 0.03 | grad 0.05 (current) | grad 0.07 |
+|---|---|---|---|
+| Gujarat (3) | 1.00 / 0.09 / 90 | 0.75 / 0.19 / 47 | 0.41 / 0.25 / 17 |
+| Maharashtra & Goa (3) | 0.94 / 0.11 / 83 | 0.18 / 0.09 / 21 | 0.06 / 0.17 / 5 |
+| Karnataka & Kerala (3) | 0.56 / 0.31 / 48 | 0.13 / 0.44 / 8 | 0.04 / 0.22 / 1 |
+| Tamil Nadu & Puducherry (1) | 0.43 / 0.08 / 59 | 0.38 / 0.15 / 34 | 0.05 / 0.12 / 8 |
+| Andaman & Nicobar (3) | 0.02 / 0.00 / 19 | 0.00 / 0.00 / 3 | 0.00 / 0.00 / 0 |
+| Lakshadweep (2) | 0.00 / 0.00 / 1 | 0.00 / 0.00 / 0 | 0.00 / 0.00 / 0 |
+
+- The gradient threshold dominates. Lowering it to 0.03 °C/km catches most INCOIS lines on the west coast but triples the points, so precision stays low.
+- `CHL_MIN` barely matters between 0.2 and 1.0 for Maharashtra & Goa, so the offshore INCOIS lines there need a weaker front threshold, not more chlorophyll (the 2026-11-19 guess was wrong). Andaman & Nicobar only reaches 0.53 hit rate at grad 0.03 with chl 0.2.
+- Lakshadweep scores 0 everywhere: INCOIS lines there are far from any front we detect.
+- Precision is low at every setting: we produce many more points than INCOIS has lines. A cap on points per region, or ranking zones by front strength, may be needed alongside thresholds.
+- Next: rerun once ~3 weeks are archived and chlorophyll is updating again, then choose values.
 
 ### Step 6: Region assignment by coast
 
@@ -128,7 +146,7 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
    | East coast regions | 0 | – | 44 | – |
 
    Gujarat matches well. Off Maharashtra & Goa the INCOIS lines lie 30 – 60 km offshore while our zones hug the coast, where chlorophyll is highest: a candidate for a higher `CHL_MIN` there. INCOIS issued no east coast lines that day, so precision is only meaningful in regions where INCOIS has lines.
-5. Per-region thresholds tuned from the comparison.
+5. Per-region thresholds tuned from the comparison. In progress: thresholds per region in `regions.py` (unchanged values), `sweep.py`, preliminary results above; values to be chosen after ~3 weeks of archive.
 6. ~~Region assignment by nearest harbour.~~ Done 2026-11-19: zones take the region of the harbour nearest their points; zones over 300 km from every harbour are dropped. Zones per date rose (e.g. 2026-10-20: 44 → 60) because zones between the old boxes are kept. Zones off Daman now count as Maharashtra & Goa (nearest listed harbour Mumbai; Dholai is missing).
 7. ~~Polygons with holes.~~ Done 2026-11-19: 3 – 83 holes per date; no zone needed a MultiPolygon. `zones.geojson` is 118 – 237 KB per date, except 2026-09-29 at 533 KB (133 zones, 493 points).
 
@@ -139,6 +157,8 @@ Region boxes overlap and leave gaps (e.g. Lakshadweep inside the Karnataka & Ker
 - **Near-real-time chlorophyll:** the NRT composite is 4 – 10 days old and lower quality than the science-quality product; SST and chlorophyll dates differ by up to ~1 week.
 - **Advisory points are tile-based:** they are spread over the zone on a ~30 km grid, not traced along the front line.
 - **Distances are straight-line** from harbour to point and can cross land (e.g. around Kathiawar or Sri Lanka).
+- **ERDDAP access from GitHub:** PFEG ERDDAP (MUR SST, ETOPO) answered HTTP 403 to GitHub runners for a while on 2026-11-19; the weekly job retries 3 times. It worked again on 2026-11-22.
+- **NRT chlorophyll can stall:** the NOAA-20 NRT composite stayed at 2026-11-09 through at least 2026-11-22, so SST and chlorophyll were 11+ days apart.
 - **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap.
 
 ## Later
