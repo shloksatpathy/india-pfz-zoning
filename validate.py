@@ -101,7 +101,7 @@ def compare(day):
         print(f"INCOIS {day}: no published date within {MAX_GAP_DAYS} days, not scored yet")
         return
     features = json.load(open(PUBLISHED / ours / "zones.geojson"))["features"]
-    zones = [f for f in features if f["geometry"]["type"] != "Point"]
+    zones = [f for f in features if f["geometry"]["type"] != "Point" and f["properties"]["points"] > 0]
     points = [f["properties"] for f in features if f["geometry"]["type"] == "Point"]
     segments = incois_segments(f"validation/incois/{day}.geojson")
     rows = score(segments, zones, points)

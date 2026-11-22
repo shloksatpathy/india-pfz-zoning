@@ -111,7 +111,18 @@ Hit rate is 0 at every setting.
 1. ~~Daily automatic scoring in `incois.yml`; `validate.py --summary`.~~ Done 2026-11-22: `validate.py --new` scores every archived day without a `validation/<date>.csv` against `docs/site/outputs/` (days with no published date within 3 days wait for a later one). 3 days scored so far.
 2. ~~Zone strength scores and per-region `rank`.~~ Done 2026-11-22: `grad`, `front_km`, `strength` (= `grad` × `front_km`, the default) and `rank` in `zones.csv`, `points.csv` and `zones.geojson`; published weeks regenerated. `strength` favours long fronts, so top-ranked zones are also the largest.
 3. ~~`MAX_POINTS` cap; web list by rank with "Show all zones".~~ Done 2026-11-22: `MAX_POINTS` in `regions.py` (all `None` = no cap until step 5); points go to zones in rank order, nearest-harbour points first. Page lists zones by region and rank; "Show all zones" adds zones without points as dashed outlines. Tested with a cap of 5.
-4. Sweep over score × cap × thresholds; preliminary table.
+4. ~~Sweep over score × cap × thresholds; preliminary table.~~ Done 2026-11-22: `sweep.py` builds zones once per `GRAD_MIN` × `CHL_MIN` and re-ranks them with each score (`grad`, `front_km`, `grad_x_front`) and cap (5 / 10 / 20 / all); hit rate counts only zones that get points (what the map shows by default; `validate.py` does the same). Preliminary choice on 2026-11-18 – 20 (best precision with hit rate ≥ 0.5, else best hit rate):
+
+   | Region (days) | Current: hit / prec / points | Best: grad, chl, score, cap | Best: hit / prec / points |
+   |---|---|---|---|
+   | Gujarat (3) | 0.75 / 0.19 / 47 | 0.05, 0.2, grad, 10 | 0.50 / 0.37 / 10 |
+   | Maharashtra & Goa (3) | 0.18 / 0.09 / 21 | 0.03, 1.0, front_km, 5 | 0.57 / 0.40 / 5 |
+   | Karnataka & Kerala (3) | 0.13 / 0.44 / 8 | 0.03, 0.3, grad, all | 0.56 / 0.31 / 48 |
+   | Tamil Nadu & Puducherry (1) | 0.38 / 0.15 / 34 | 0.03, 0.2, grad, all | 0.45 / 0.04 / 120 |
+   | Andaman & Nicobar (3) | 0.00 / 0.00 / 3 | 0.03, 0.2, grad, all | 0.53 / 0.01 / 102 |
+   | Lakshadweep (2) | 0.00 / 0.00 / 0 | – | 0.00 everywhere |
+
+   Ranking plus a cap doubles precision where it applies (Gujarat, Maharashtra & Goa) with 5 – 10 points per region instead of 20 – 50. `grad` (front sharpness) is the best score in most regions, not `grad × front_km`. Karnataka & Kerala, Tamil Nadu and Andaman & Nicobar reach a hit rate of 0.5 only with weak thresholds and no cap. Three days with one stalled chlorophyll composite: not yet used to change values.
 5. Final per-region values (≈ 2026-12-09 or later); site rebuilt.
 6. Lakshadweep investigation.
 

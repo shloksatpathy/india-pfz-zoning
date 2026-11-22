@@ -194,28 +194,30 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINT
             "grad": round(float(g), 3),
             "front_km": round(float(fkm), 1),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
-            "points": len(points),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
             "distance_km": closest["distance_km"],
             "advisory": closest["advisory"],
             "geometry": outline(labels, label, boxes[label - 1], lat, lon),
-            "point_list": points,
+            "all_points": points,
         })
 
+    return rank_zones(zones, strength, max_points)
+
+
+def rank_zones(zones, score, max_points):
+    """Rank zones per region by score; give advisory points in rank order up to max_points per region."""
     for name in REGIONS:
-        ranked = sorted((z for z in zones if z["region"] == name), key=strength, reverse=True)
+        ranked = sorted((z for z in zones if z["region"] == name), key=score, reverse=True)
         budget = max_points[name]
         for n, z in enumerate(ranked):
             z["strength"] = round(strength(z), 1)
             z["rank"] = n + 1
-            points = sorted(z["point_list"], key=lambda pt: pt["distance_km"])
+            points = sorted(z["all_points"], key=lambda pt: pt["distance_km"])
             if budget is not None:
                 points = points[:budget]
                 budget -= len(points)
-            for pt in points:
-                pt["rank"] = n + 1
-            z["point_list"] = points
+            z["point_list"] = [{**pt, "rank": n + 1} for pt in points]
             z["points"] = len(points)
     return zones
 
