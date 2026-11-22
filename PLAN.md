@@ -2,7 +2,7 @@
 
 Goal: Potential Fishing Zones (PFZ) for India's coastal regions from satellite SST and chlorophyll-a, published as a weekly web map, checked against INCOIS advisories.
 
-## Current system (phases 1 – 2, done)
+## Current system (phases 1 – 3, done except final values)
 
 ```
 run.py ──> fetch.py ──> data/sst_<date>.nc, chl_n20_<date>.nc, etopo.nc
@@ -11,23 +11,23 @@ run.py ──> fetch.py ──> data/sst_<date>.nc, chl_n20_<date>.nc, etopo.nc
            pfz.py ──> outputs/<SST date>/zones.csv, points.csv, zones.geojson,
               │       sst.png, chl.png, check.png, <region>.png
               v
-outputs/index.json ──> site.py ──> docs/site/ ──> GitHub Pages (weekly.yml)
+outputs/index.json ──> site.py ──> docs/site/ ──> GitHub Pages (weekly.yml, deploy.yml)
 
-incois.py ──> validation/incois/<date>.geojson (daily, incois.yml)
-validate.py, sweep.py ──> validation/<date>.csv, validation/sweep.csv
+incois.py ──> validation/incois/<date>.geojson ──> validate.py ──> validation/<date>.csv  (daily, incois.yml)
+sweep.py ──> validation/sweep.csv
 ```
 
 | File | Purpose |
 |---|---|
-| `regions.py` | Region boxes (map zoom, plots), download box, `THRESHOLDS` per region |
+| `regions.py` | Region boxes (map zoom, plots), download box, `THRESHOLDS` and `MAX_POINTS` per region |
 | `fetch.py` | MUR SST (`jplMURSST41`, PFEG ERDDAP), NOAA-20 NRT 7-day chlorophyll (`noaacwN20VIIRSchlaWeekly`, CoastWatch ERDDAP), ETOPO1 depth |
-| `pfz.py` | Fronts ∩ productive water (per-pixel thresholds from the nearest harbour's region), EEZ clip, zones with holes, advisory points |
+| `pfz.py` | Fronts ∩ productive water (per-pixel thresholds from the nearest harbour's region), EEZ clip, zones with holes, ranking (`rank_zones`), advisory points |
 | `harbours.py` | 54 fishing harbours with region: DoF Handbook 2020 names, OpenStreetMap coordinates |
 | `run.py` | `run.py last`: newest SST day + newest chlorophyll on or before it; ranges step 7 days |
 | `site.py` | Latest 8 weeks in `docs/site/` with `web/index.html` and the EEZ |
 | `incois.py` | Archives the current INCOIS PFZ lines (WFS layer `PFZ_Automation:pfzlines`) |
-| `validate.py` | Per region: hit rate (INCOIS line length within 10 km of our zones) and precision (our points within 10 km of INCOIS lines) |
-| `sweep.py` | `GRAD_MIN` × `CHL_MIN` grid scored against archived INCOIS days |
+| `validate.py` | `--new`: per region hit rate (INCOIS line length within 10 km of our zones with points) and precision (our points within 10 km of INCOIS lines); `--summary` |
+| `sweep.py` | `GRAD_MIN` × `CHL_MIN` × ranking score × point cap, scored against archived INCOIS days |
 | `.github/workflows/weekly.yml` | Tuesdays: `run.py last` (3 tries), rebuild site, commit, deploy |
 | `.github/workflows/incois.yml` | Daily 13:00 IST: archive INCOIS lines, score new days, commit |
 | `.github/workflows/deploy.yml` | Deploys the committed `docs/site` on every push that changes it |
@@ -37,109 +37,95 @@ Parameters:
 | Parameter | Value | Where |
 |---|---|---|
 | `GRAD_MIN`, `CHL_MIN` | 0.05 °C/km, 0.3 mg/m³ in every region | `regions.py` `THRESHOLDS` |
+| `MAX_POINTS` | `None` (no cap) in every region | `regions.py` |
+| Ranking score | `grad × front_km` | `pfz.py` `strength` |
 | `DILATE`, `MIN_PIXELS` | 2 px, 50 px (~240 km²) | `pfz.py` |
 | `POINT_TILE_KM`, `MIN_TILE_PIXELS` | 30 km, 20 px (~100 km²) | `pfz.py` |
 | `MAX_HARBOUR_KM` | 300 km | `pfz.py` |
 
-Published dates (2026-11-22): 2026-10-06 – 2026-11-20, 41 – 86 zones and 120 – 237 advisory points per date.
+Published dates (2026-11-22): 2026-10-06 – 2026-11-20, 41 – 86 zones and 120 – 237 advisory points per date. The page lists zones by region and rank, with "Show all zones" for zones without points.
 
-**Validation so far.** INCOIS archive: 2026-11-18 – 20 (west coast and islands, one Tamil Nadu day). Sweep means per region at `CHL_MIN` 0.3 (hit rate / precision / our points per day):
+**Validation so far** (INCOIS 2026-11-18 – 20, one stalled chlorophyll composite, so preliminary). Best combination per region from `sweep.py` (best precision with hit rate ≥ 0.5, else best hit rate):
 
-| Region (days with INCOIS lines) | grad 0.03 | grad 0.05 (current) | grad 0.07 |
+| Region (days) | Current: hit / prec / points | Best: grad, chl, score, cap | Best: hit / prec / points |
 |---|---|---|---|
-| Gujarat (3) | 1.00 / 0.09 / 90 | 0.75 / 0.19 / 47 | 0.41 / 0.25 / 17 |
-| Maharashtra & Goa (3) | 0.94 / 0.11 / 83 | 0.18 / 0.09 / 21 | 0.06 / 0.17 / 5 |
-| Karnataka & Kerala (3) | 0.56 / 0.31 / 48 | 0.13 / 0.44 / 8 | 0.04 / 0.22 / 1 |
-| Tamil Nadu & Puducherry (1) | 0.43 / 0.08 / 59 | 0.38 / 0.15 / 34 | 0.05 / 0.12 / 8 |
-| Andaman & Nicobar (3) | 0.02 / 0.00 / 19 | 0.00 / 0.00 / 3 | 0.00 / 0.00 / 0 |
-| Lakshadweep (2) | 0.00 / 0.00 / 1 | 0.00 / 0.00 / 0 | 0.00 / 0.00 / 0 |
+| Gujarat (3) | 0.75 / 0.19 / 47 | 0.05, 0.2, grad, 10 | 0.50 / 0.37 / 10 |
+| Maharashtra & Goa (3) | 0.18 / 0.09 / 21 | 0.03, 1.0, front_km, 5 | 0.57 / 0.40 / 5 |
+| Karnataka & Kerala (3) | 0.13 / 0.44 / 8 | 0.03, 0.3, grad, all | 0.56 / 0.31 / 48 |
+| Tamil Nadu & Puducherry (1) | 0.38 / 0.15 / 34 | 0.03, 0.2, grad, all | 0.45 / 0.04 / 120 |
+| Andaman & Nicobar (3) | 0.00 / 0.00 / 3 | 0.03, 0.2, grad, all | 0.53 / 0.01 / 102 |
+| Lakshadweep (2) | 0.00 / 0.00 / 0 | – | 0.00 everywhere |
 
-- The gradient threshold dominates; `CHL_MIN` between 0.2 and 1.0 barely changes the west coast.
-- Lowering `GRAD_MIN` catches most INCOIS lines but multiplies our points, so precision stays at or below 0.44 everywhere: we mark far more places than INCOIS does (INCOIS: 30 lines on 2026-11-18 across all regions).
-- All three days used the same stalled chlorophyll (2026-11-09), so the results are preliminary.
+- Ranking plus a cap doubles precision in Gujarat and Maharashtra & Goa with 5 – 10 points per region.
+- Lakshadweep cannot be matched: INCOIS lines there lie on SST gradients of 0.005 – 0.023 °C/km with low, often cloud-masked chlorophyll; thresholds low enough to reach them mark 30,000 – 166,000 km² at precision ≤ 0.02. Regular thresholds stay.
 
-## Phase 3: Fewer, ranked zones and final thresholds
+## Phase 4: Fresher chlorophyll, accurate advisories, final values
 
-Problem: the map shows every zone that passes the thresholds, so a fisher sees 100 – 240 points with no order of importance, and most of them have no INCOIS counterpart. Thresholds alone can raise hit rate or precision, not both.
+Problems (2026-11-22):
+- **Chlorophyll is 2 weeks old.** The NOAA-20 NRT 7-day composite has stayed at 2026-11-09 since at least 2026-11-19, while SST is current to 2026-11-20.
+- **Distances cross land.** Advisory distances are straight lines, so a zone in the Gulf of Kutch can be measured from Veraval across Kathiawar, and Palk Bay zones across Sri Lanka. The nearest harbour is chosen the same way.
+- **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat (not found in OpenStreetMap).
 
-### Step 1: Score every day automatically
+Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on the same 0.0375° grid with `time, altitude, latitude, longitude`):
 
-So scores accumulate without manual runs.
+| Dataset | Sensor | Newest | One-day coverage of the box's ocean |
+|---|---|---|---|
+| `noaacwN20VIIRSchlaWeekly` (current) | NOAA-20 VIIRS, 7-day | 2026-11-09 | ~87% |
+| `noaacwN20VIIRSchlaDaily` | NOAA-20 VIIRS | 2026-11-15 | 10 – 47% |
+| `noaacwNPPVIIRSchlaDaily` | S-NPP VIIRS | 2026-11-13 | – |
+| `noaacwS3AOLCIchlaDaily` | Sentinel-3A OLCI | 2026-11-19 | ~26% (2026-11-19) |
+| `noaacwS3BOLCIchlaDaily` | Sentinel-3B OLCI | 2026-11-19 | < 1% (2026-11-19) |
 
-- `validate.py` reads our published zones from `docs/site/outputs/` (already in the repo and in CI) instead of the local `outputs/`.
-- `incois.yml`: after archiving, run `validate.py --new`, which scores every archived day without a `validation/<date>.csv` when a published date is within 3 days, and commit `validation/`. Maps go to the ignored `outputs/validation/`.
-- `validate.py --summary`: mean hit rate and precision per region over all `validation/<date>.csv`, printed as a table, for PLAN.md updates.
+### Step 1: Multi-sensor chlorophyll composite
 
-### Step 2: Rank zones
+- `fetch.py`: for the 7 days ending at the SST date, download each available day of the four daily datasets above (up to 28 files, ~1.5 MB each) to `data/chl_<sensor>_<date>.nc`.
+- `pfz.py`: chlorophyll = per-pixel median over all downloaded days and sensors; `chl_date` = newest day used. Record the days and sensors used and the ocean coverage share in `zones.geojson` and `index.json`.
+- Check the sensors agree before mixing: median OLCI / VIIRS ratio on pixels both see. If it is beyond ~±20%, record it and decide (scale OLCI or drop it).
+- Compare with the current weekly composite on the archived INCOIS days at current settings (`validate.py` scores, coverage, age). Switch only if coverage and scores are at least as good.
+- Keep the weekly composite in the code path until the switch is decided.
 
-Give each zone a strength so the strongest come first.
+### Step 2: Staleness warning
 
-- In `describe_zones`, add per zone: `grad` (mean SST gradient over its front ∩ productive pixels, °C/km) and `front_km` (length of front pixels, ~pixel count × pixel size).
-- Candidate scores, compared in step 4:
-  - `grad` (front sharpness)
-  - `front_km` (front length)
-  - `grad × front_km`
-- `rank`: 1 = strongest within its region; stored in `zones.csv`, `points.csv` and `zones.geojson`.
+- `web/index.html`: when `sst_date − chl_date` is more than 10 days, show a warning line above the list ("Chlorophyll is N days older than SST").
+- `site.py` / `index.json`: nothing new needed, both dates are already there.
 
-### Step 3: Cap points per region
+### Step 3: Missing harbours from INCOIS landing centres
 
-INCOIS issues about 1 – 14 lines per region per day, while we issue up to ~90 points.
+- INCOIS publishes 1,223 landing centres with coordinates (WFS layer `PFZ_LandingCentres:LandingCenters_29Apr2024`, the layer behind their PFZ WebGIS page). It has Dholai (20.74 °N, 72.90 °E), Pazhayar (11.35 °N, 79.83 °E) and Petuaghat (21.79 °N, 87.88 °E).
+- Add these three to `harbours.py` with the source in the header. Roychowk is not in the layer and "Agro" stays ambiguous, so both remain missing.
+- Expected effect: zones off Daman go back to Gujarat (Dholai), Palk Bay / Cauvery delta zones get a closer Tamil Nadu harbour.
 
-- `MAX_POINTS` per region in `regions.py` (start: all, i.e. no cap). Points are taken from zones in rank order until the cap; lower-ranked zones stay in `zones.geojson` with `rank` but get no advisory points.
-- Web page: list sorted by rank within the selected region; a "Show all zones" toggle shows unranked zones as outlines only.
+### Step 4: Sea-route distances
 
-### Step 4: Sweep with ranking and cap
+- Build an ocean grid at ~0.05° from the MUR land mask (land = NaN SST), 8-connected, and run `scipy.sparse.csgraph.dijkstra` from every harbour (snapped to the nearest ocean cell). Cache the distance fields in `data/sea_km.npz` (rebuilt when `harbours.py` changes).
+- Advisory distance = sea-route km; the nearest harbour (and therefore region and per-pixel thresholds) = smallest sea-route distance. Bearing stays the straight compass direction from the harbour, as in INCOIS advisories.
+- Check cases: Gulf of Kutch zones (Jakhau vs Veraval), Gulf of Khambhat, Palk Bay, Andaman east coast. Record how many points change harbour and by how much the distance changes.
 
-- Extend `sweep.py` with the score (step 2) and `MAX_POINTS` 5 / 10 / 20 / all as extra dimensions; keep `GRAD_MIN` and `CHL_MIN` dimensions.
-- Pick, per region, the combination with the best precision at a hit rate of at least ~0.5 (or the best hit rate where 0.5 is out of reach).
-- First run on the archive available then (preliminary); record the table here.
+### Step 5: Final per-region values (carried over from phase 3, ≈ 2026-12-09)
 
-### Step 5: Choose values (after ~3 weeks of archive, ≈ 2026-12-09)
-
-- Rerun the step 4 sweep on all archived days, ideally with chlorophyll updating again (check `chl_date` in `docs/site/outputs/index.json`).
-- Set `THRESHOLDS`, `MAX_POINTS` and the ranking score in the code; rebuild `docs/site` for the 8 published weeks; record the final sweep table and values here.
-- Check that east coast regions have enough INCOIS days to tune; otherwise keep the phase 1 values there and say so.
-
-### Step 6: Lakshadweep
-
-Hit rate is 0 at every setting.
-
-- Plot INCOIS Lakshadweep lines over our SST gradient and chlorophyll for each archived day (`validate.py` maps plus `check.png`).
-- Find out whether the lines follow weaker fronts than 0.03 °C/km, sit in chlorophyll gaps, or follow something we do not detect; decide on a region-specific rule or record it as a limitation.
+- Needs ~3 weeks of INCOIS archive and the chlorophyll source decided in step 1, since thresholds depend on it.
+- Download SST for every archived INCOIS day, rerun `sweep.py` on all of them with the chosen chlorophyll source.
+- Set `THRESHOLDS`, `MAX_POINTS` and the ranking score; regions with fewer than 5 INCOIS days, and Lakshadweep, keep the phase 1 values. Rebuild the 8 published weeks; record the final table and values here.
 
 ### Milestones
 
-1. ~~Daily automatic scoring in `incois.yml`; `validate.py --summary`.~~ Done 2026-11-22: `validate.py --new` scores every archived day without a `validation/<date>.csv` against `docs/site/outputs/` (days with no published date within 3 days wait for a later one). 3 days scored so far.
-2. ~~Zone strength scores and per-region `rank`.~~ Done 2026-11-22: `grad`, `front_km`, `strength` (= `grad` × `front_km`, the default) and `rank` in `zones.csv`, `points.csv` and `zones.geojson`; published weeks regenerated. `strength` favours long fronts, so top-ranked zones are also the largest.
-3. ~~`MAX_POINTS` cap; web list by rank with "Show all zones".~~ Done 2026-11-22: `MAX_POINTS` in `regions.py` (all `None` = no cap until step 5); points go to zones in rank order, nearest-harbour points first. Page lists zones by region and rank; "Show all zones" adds zones without points as dashed outlines. Tested with a cap of 5.
-4. ~~Sweep over score × cap × thresholds; preliminary table.~~ Done 2026-11-22: `sweep.py` builds zones once per `GRAD_MIN` × `CHL_MIN` and re-ranks them with each score (`grad`, `front_km`, `grad_x_front`) and cap (5 / 10 / 20 / all); hit rate counts only zones that get points (what the map shows by default; `validate.py` does the same). Preliminary choice on 2026-11-18 – 20 (best precision with hit rate ≥ 0.5, else best hit rate):
-
-   | Region (days) | Current: hit / prec / points | Best: grad, chl, score, cap | Best: hit / prec / points |
-   |---|---|---|---|
-   | Gujarat (3) | 0.75 / 0.19 / 47 | 0.05, 0.2, grad, 10 | 0.50 / 0.37 / 10 |
-   | Maharashtra & Goa (3) | 0.18 / 0.09 / 21 | 0.03, 1.0, front_km, 5 | 0.57 / 0.40 / 5 |
-   | Karnataka & Kerala (3) | 0.13 / 0.44 / 8 | 0.03, 0.3, grad, all | 0.56 / 0.31 / 48 |
-   | Tamil Nadu & Puducherry (1) | 0.38 / 0.15 / 34 | 0.03, 0.2, grad, all | 0.45 / 0.04 / 120 |
-   | Andaman & Nicobar (3) | 0.00 / 0.00 / 3 | 0.03, 0.2, grad, all | 0.53 / 0.01 / 102 |
-   | Lakshadweep (2) | 0.00 / 0.00 / 0 | – | 0.00 everywhere |
-
-   Ranking plus a cap doubles precision where it applies (Gujarat, Maharashtra & Goa) with 5 – 10 points per region instead of 20 – 50. `grad` (front sharpness) is the best score in most regions, not `grad × front_km`. Karnataka & Kerala, Tamil Nadu and Andaman & Nicobar reach a hit rate of 0.5 only with weak thresholds and no cap. Three days with one stalled chlorophyll composite: not yet used to change values.
-5. Final per-region values (≈ 2026-12-09 or later); site rebuilt.
-6. ~~Lakshadweep investigation.~~ Done 2026-11-22. Along the 8 INCOIS Lakshadweep lines of 2026-11-18 – 20, our SST gradient has a median of 0.005 – 0.023 °C/km (below even 0.03), chlorophyll is low (median 0.15 – 0.28 mg/m³) and missing under cloud on about half the line length (0 – 100% per line). Lakshadweep-only thresholds of 0.01 – 0.02 °C/km and 0.1 – 0.15 mg/m³ reach hit rates of 0.6 – 1.0, but only by marking 30,000 – 166,000 km² of open sea with precision ≤ 0.02. Decision: keep the regular thresholds there and record it as a limitation; INCOIS's island advisories follow features our front + chlorophyll method does not detect.
+1. Multi-sensor 7-day chlorophyll median; comparison with the weekly composite; switch decision.
+2. Staleness warning on the page.
+3. Dholai, Pazhayar, Petuaghat from INCOIS landing centres.
+4. Sea-route distances and nearest harbour by sea.
+5. Final per-region thresholds, cap and ranking score (≈ 2026-12-09 or later); site rebuilt.
 
 ## Known limitations
 
-- **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
+- **Monsoon cloud cover (Jun – Sep):** satellite chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
 - **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs are produced but not actionable.
-- **Near-real-time chlorophyll:** 4 – 10 days old when updating, lower quality than the science-quality product, and it can stall: it stayed at 2026-11-09 through at least 2026-11-22.
+- **Near-real-time chlorophyll:** lower quality than science-quality products, and NOAA's NRT products can stall (NOAA-20 7-day at 2026-11-09 through at least 2026-11-22).
 - **ERDDAP access from GitHub:** PFEG ERDDAP answers HTTP 403 to GitHub runners at times (2026-11-19, 2026-11-22; `upwell.pfeg.noaa.gov` forwards to the same server). The weekly job retries 3 times; when it still fails, the site keeps the last committed data, and `deploy.yml` publishes any `docs/site` change pushed by hand.
 - **Advisory points are tile-based:** spread over the zone on a ~30 km grid, not traced along the front line.
-- **Distances are straight-line** from harbour to point and can cross land (e.g. around Kathiawar or Sri Lanka).
-- **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap; zones off Daman count as Maharashtra & Goa (nearest listed harbour Mumbai).
-- **Lakshadweep:** INCOIS lines there follow very weak SST gradients and low or cloud-masked chlorophyll; our method finds no matching zones (hit rate 0 at every useful setting).
+- **Lakshadweep:** INCOIS lines there follow very weak SST gradients and low or cloud-masked chlorophyll; our method finds no matching zones.
 - **INCOIS comparison is one-sided:** INCOIS lines are drawn by analysts and may skip valid fronts, so low precision is not only our error.
 
 ## Later
 
-- Rolling median of NOAA-20 daily NRT chlorophyll (~4 days old) and a staleness warning on the page when the composite stalls.
 - Regional languages for advisory text and the page; SMS / WhatsApp alerts.
+- Compare our advisories with INCOIS per landing centre (the landing-centre layer carries INCOIS's own direction, distance and depth ranges).
