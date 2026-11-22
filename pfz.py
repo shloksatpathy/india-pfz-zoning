@@ -150,7 +150,12 @@ def tile_points(plat, plon):
     return points
 
 
-def describe_zones(sst, chl, depth, pfz, labels, ids):
+def strength(zone):
+    """Ranking score: mean front gradient times front length (°C/km × km)."""
+    return zone["grad"] * zone["front_km"]
+
+
+def describe_zones(sst, chl, depth, grad, pfz, labels, ids):
     lat = sst.latitude.values
     lon = sst.longitude.values
     dlat = np.gradient(lat)[:, None] * KM_PER_DEG
@@ -161,10 +166,12 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
     areas = ndimage.sum(cell_km2, labels, ids)
     mean_sst = ndimage.mean(sst.values, core, ids)
     mean_chl = ndimage.mean(chl.values, core, ids)
+    mean_grad = ndimage.mean(grad.values, core, ids)
+    front_km = ndimage.sum(np.sqrt(cell_km2), core, ids)  # front pixels × pixel width
     boxes = ndimage.find_objects(labels)
 
     zones = []
-    for label, area, s, c in zip(ids, areas, mean_sst, mean_chl):
+    for label, area, s, c, g, fkm in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
@@ -184,6 +191,8 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
             "area_km2": round(float(area), 1),
             "sst": round(float(s), 2),
             "chl": round(float(c), 3),
+            "grad": round(float(g), 3),
+            "front_km": round(float(fkm), 1),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "points": len(points),
             "harbour": closest["harbour"],
@@ -193,11 +202,19 @@ def describe_zones(sst, chl, depth, pfz, labels, ids):
             "geometry": outline(labels, label, boxes[label - 1], lat, lon),
             "point_list": points,
         })
+
+    for name in REGIONS:
+        ranked = sorted((z for z in zones if z["region"] == name), key=strength, reverse=True)
+        for n, z in enumerate(ranked):
+            z["strength"] = round(strength(z), 1)
+            z["rank"] = n + 1
+            for pt in z["point_list"]:
+                pt["rank"] = n + 1
     return zones
 
 
-FIELDS = ["id", "region", "lat", "lon", "area_km2", "sst", "chl", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
-POINT_FIELDS = ["zone_id", "point", "region", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date):
@@ -299,7 +316,7 @@ def run(sst_date, chl_date):
     grad_min, chl_min = threshold_grids(sst)
     pfz = (grad >= grad_min) & (chl >= chl_min) & ocean
     labels, ids = label_zones(pfz, ocean)
-    zones = describe_zones(sst, chl, depth, pfz, labels, ids)
+    zones = describe_zones(sst, chl, depth, grad, pfz, labels, ids)
 
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
     write_tables(out, zones, sst_date, chl_date)

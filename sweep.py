@@ -26,7 +26,7 @@ def sweep(days):
         for g, c in itertools.product(GRADS, CHLS):
             mask = (grad >= g) & (chl >= c) & ocean
             labels, ids = pfz.label_zones(mask, ocean)
-            zones = pfz.describe_zones(sst, chl, depth, mask, labels, ids)
+            zones = pfz.describe_zones(sst, chl, depth, grad, mask, labels, ids)
             features = [{"geometry": z["geometry"], "properties": {"region": z["region"]}} for z in zones]
             points = [pt for z in zones for pt in z["point_list"]]
             for r in validate.score(segments, features, points):
