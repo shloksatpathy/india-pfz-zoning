@@ -118,7 +118,7 @@ Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on t
    | 2026-11-20 | 11 d / 83% | 1 d / 86% | 0.80 | 0.27 / 0.07 | 0.27 / 0.07 |
 
    The median is fresher and covers more; scores are a tie (mixed by region: Karnataka & Kerala better, Tamil Nadu worse on 2026-11-20); OLCI reads 16 – 20% lower than VIIRS. Decision: keep the weekly composite in production; the median code stays for a later switch (revisit if the weekly composite stays stalled or once more INCOIS days are archived).
-2. Staleness warning on the page.
+2. ~~Staleness warning on the page.~~ Done 2026-11-22: a warning line shows when chlorophyll is more than 10 days older than SST (2026-11-20: 11 days).
 3. Dholai, Pazhayar, Petuaghat from INCOIS landing centres.
 4. Sea-route distances and nearest harbour by sea.
 5. Final per-region thresholds, cap and ranking score (≈ 2026-12-09 or later); site rebuilt.

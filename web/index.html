@@ -27,6 +27,8 @@
   li b { display: block; }
   li.zone { cursor: pointer; border-bottom: none; padding-bottom: 4px; }
   li.point { padding: 10px 4px 10px 20px; }
+  .warn { margin: 4px 0 8px; padding: 8px 12px; border-radius: 6px; background: #fff3cd; color: #664d03; }
+  @media (prefers-color-scheme: dark) { .warn { background: #3d3214; color: #ffe69c; } }
   .toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
   .toggle input { width: 20px; height: 20px; }
   li small { color: var(--muted); }
@@ -42,6 +44,7 @@
 <div id="map"></div>
 <main>
   <p class="bar" id="dates"></p>
+  <p class="warn" id="stale" hidden></p>
   <div class="bar">
     <div class="legend">
       Chlorophyll (mg/m³):
@@ -58,6 +61,7 @@
 </main>
 <script>
 const SST_RANGE = "SST 26 – 32 °C";
+const STALE_DAYS = 10;  // warn when chlorophyll is this much older than SST
 const CHL_RANGE = "Chlorophyll 0.03 – 10 mg/m³";
 
 const map = L.map("map");
@@ -170,6 +174,10 @@ async function loadDate() {
   const entry = index.dates.find(d => d.date === date);
   document.getElementById("dates").textContent =
     `SST ${entry.sst_date} · Chlorophyll: 7-day composite dated ${entry.chl_date}`;
+  const lag = (new Date(entry.sst_date) - new Date(entry.chl_date)) / 86400000;
+  const stale = document.getElementById("stale");
+  stale.hidden = lag <= STALE_DAYS;
+  stale.textContent = `Chlorophyll is ${lag} days older than SST: zones may not match current conditions.`;
   const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
   features = geojson.features;
   zoneLayer.clearLayers().addData(features);
