@@ -24,3 +24,6 @@ THRESHOLDS = {
     "Odisha & West Bengal": (0.05, 0.3),
     "Andaman & Nicobar": (0.05, 0.3),
 }
+
+# Advisory points per region, given to zones in rank order (None = no cap). See PLAN.md phase 3.
+MAX_POINTS = {name: None for name in REGIONS}

@@ -27,6 +27,8 @@
   li b { display: block; }
   li.zone { cursor: pointer; border-bottom: none; padding-bottom: 4px; }
   li.point { padding: 10px 4px 10px 20px; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+  .toggle input { width: 20px; height: 20px; }
   li small { color: var(--muted); }
   .empty { padding: 16px 4px; color: var(--muted); }
 </style>
@@ -50,6 +52,7 @@
     </div>
     <div id="downloads"></div>
   </div>
+  <label class="toggle"><input type="checkbox" id="showAll"> Show all zones (lower-ranked zones without advisory points)</label>
   <ul id="list"></ul>
   <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS near real time. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Bearings and distances are straight-line from the harbour to the zone centre. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
 </main>
@@ -66,10 +69,17 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const dateSelect = document.getElementById("date");
 const regionSelect = document.getElementById("region");
 const list = document.getElementById("list");
+const showAll = document.getElementById("showAll");
 const POINT_ZOOM = 7;  // advisory points show from this zoom in
+function isShownZone(f) {
+  return f.properties.kind !== "point" && (showAll.checked || f.properties.points > 0);
+}
+
 const zoneLayer = L.geoJSON(null, {
-  filter: f => f.properties.kind !== "point",
-  style: f => ({ color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 }),
+  filter: isShownZone,
+  style: f => f.properties.points > 0
+    ? { color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 }
+    : { color: "#555", weight: 1, dashArray: "4 4", fillOpacity: 0 },
   onEachFeature: (f, layer) => layer.bindPopup(popup(f.properties)),
 }).addTo(map);
 const pointLayer = L.geoJSON(null, {
@@ -98,12 +108,12 @@ function chlColor(chl) {
 }
 
 function popup(p) {
-  return `<b>Zone ${p.id}, ${p.region}</b><br>${p.points} points · nearest: ${p.advisory}<br>` +
+  return `<b>Zone ${p.id}, ${p.region}</b><br>Rank ${p.rank} in region · ${p.points} points · nearest: ${p.advisory}<br>` +
     `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³`;
 }
 
 function pointPopup(p) {
-  return `<b>${p.advisory}</b><br>Zone ${p.zone_id}, point ${p.point} · ${p.region}<br>` +
+  return `<b>${p.advisory}</b><br>Zone ${p.zone_id} (rank ${p.rank}), point ${p.point} · ${p.region}<br>` +
     `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E`;
 }
 
@@ -121,8 +131,9 @@ function focus(f) {
 
 function showList() {
   const region = regionSelect.value;
-  const zones = features.filter(f => f.properties.kind !== "point" && (!region || f.properties.region === region))
-    .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
+  const order = Object.keys(index.regions);
+  const zones = features.filter(f => isShownZone(f) && (!region || f.properties.region === region))
+    .sort((a, b) => order.indexOf(a.properties.region) - order.indexOf(b.properties.region) || a.properties.rank - b.properties.rank);
   list.innerHTML = "";
   if (zones.length === 0) {
     list.innerHTML = `<li class="empty">No zones for this date and region.</li>`;
@@ -132,7 +143,8 @@ function showList() {
     const p = zone.properties;
     const li = document.createElement("li");
     li.className = "zone";
-    li.innerHTML = `<small>Zone ${p.id} · ${p.region} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³</small>`;
+    li.innerHTML = `<small>#${p.rank} ${p.region} · Zone ${p.id} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³` +
+      (p.points > 0 ? "" : " · no advisory points") + `</small>`;
     li.onclick = () => focus(zone);
     list.appendChild(li);
     const points = features.filter(f => f.properties.kind === "point" && f.properties.zone_id === p.id)
@@ -160,7 +172,7 @@ async function loadDate() {
     `SST ${entry.sst_date} · Chlorophyll: 7-day composite dated ${entry.chl_date}`;
   const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
   features = geojson.features;
-  zoneLayer.clearLayers().addData(geojson);
+  zoneLayer.clearLayers().addData(features);
   pointLayer.clearLayers().addData(geojson);
   sstLayer.setUrl(`outputs/${date}/sst.png`).setBounds(index.bounds);
   chlLayer.setUrl(`outputs/${date}/chl.png`).setBounds(index.bounds);
@@ -179,6 +191,10 @@ async function start() {
   }
   dateSelect.onchange = loadDate;
   regionSelect.onchange = zoomToRegion;
+  showAll.onchange = () => {
+    zoneLayer.clearLayers().addData(features);
+    showList();
+  };
   map.fitBounds(index.bounds);
   map.on("overlayadd", async e => {
     if (e.layer === eezLayer && eezLayer.getLayers().length === 0) {

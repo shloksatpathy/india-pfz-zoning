@@ -15,7 +15,7 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 
 from harbours import HARBOURS
-from regions import REGIONS, THRESHOLDS
+from regions import MAX_POINTS, REGIONS, THRESHOLDS
 
 DILATE = 2  # pixels, joins nearby front pixels into one zone
 MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
@@ -155,7 +155,7 @@ def strength(zone):
     return zone["grad"] * zone["front_km"]
 
 
-def describe_zones(sst, chl, depth, grad, pfz, labels, ids):
+def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINTS):
     lat = sst.latitude.values
     lon = sst.longitude.values
     dlat = np.gradient(lat)[:, None] * KM_PER_DEG
@@ -205,11 +205,18 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids):
 
     for name in REGIONS:
         ranked = sorted((z for z in zones if z["region"] == name), key=strength, reverse=True)
+        budget = max_points[name]
         for n, z in enumerate(ranked):
             z["strength"] = round(strength(z), 1)
             z["rank"] = n + 1
-            for pt in z["point_list"]:
+            points = sorted(z["point_list"], key=lambda pt: pt["distance_km"])
+            if budget is not None:
+                points = points[:budget]
+                budget -= len(points)
+            for pt in points:
                 pt["rank"] = n + 1
+            z["point_list"] = points
+            z["points"] = len(points)
     return zones
 
 

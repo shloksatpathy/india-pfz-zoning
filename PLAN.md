@@ -110,7 +110,7 @@ Hit rate is 0 at every setting.
 
 1. ~~Daily automatic scoring in `incois.yml`; `validate.py --summary`.~~ Done 2026-11-22: `validate.py --new` scores every archived day without a `validation/<date>.csv` against `docs/site/outputs/` (days with no published date within 3 days wait for a later one). 3 days scored so far.
 2. ~~Zone strength scores and per-region `rank`.~~ Done 2026-11-22: `grad`, `front_km`, `strength` (= `grad` × `front_km`, the default) and `rank` in `zones.csv`, `points.csv` and `zones.geojson`; published weeks regenerated. `strength` favours long fronts, so top-ranked zones are also the largest.
-3. `MAX_POINTS` cap; web list by rank with "Show all zones".
+3. ~~`MAX_POINTS` cap; web list by rank with "Show all zones".~~ Done 2026-11-22: `MAX_POINTS` in `regions.py` (all `None` = no cap until step 5); points go to zones in rank order, nearest-harbour points first. Page lists zones by region and rank; "Show all zones" adds zones without points as dashed outlines. Tested with a cap of 5.
 4. Sweep over score × cap × thresholds; preliminary table.
 5. Final per-region values (≈ 2026-12-09 or later); site rebuilt.
 6. Lakshadweep investigation.
