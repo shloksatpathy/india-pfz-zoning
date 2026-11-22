@@ -29,7 +29,8 @@ validate.py, sweep.py ──> validation/<date>.csv, validation/sweep.csv
 | `validate.py` | Per region: hit rate (INCOIS line length within 10 km of our zones) and precision (our points within 10 km of INCOIS lines) |
 | `sweep.py` | `GRAD_MIN` × `CHL_MIN` grid scored against archived INCOIS days |
 | `.github/workflows/weekly.yml` | Tuesdays: `run.py last` (3 tries), rebuild site, commit, deploy |
-| `.github/workflows/incois.yml` | Daily 13:00 IST: archive INCOIS lines, commit |
+| `.github/workflows/incois.yml` | Daily 13:00 IST: archive INCOIS lines, score new days, commit |
+| `.github/workflows/deploy.yml` | Deploys the committed `docs/site` on every push that changes it |
 
 Parameters:
 
@@ -131,7 +132,7 @@ Hit rate is 0 at every setting.
 - **Monsoon cloud cover (Jun – Sep):** VIIRS chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
 - **Fishing ban periods:** East coast 15 Apr – 31 May, West coast 1 Jun – 31 Jul. Outputs are produced but not actionable.
 - **Near-real-time chlorophyll:** 4 – 10 days old when updating, lower quality than the science-quality product, and it can stall: it stayed at 2026-11-09 through at least 2026-11-22.
-- **ERDDAP access from GitHub:** PFEG ERDDAP answered HTTP 403 to GitHub runners for a while on 2026-11-19; the weekly job retries 3 times.
+- **ERDDAP access from GitHub:** PFEG ERDDAP answers HTTP 403 to GitHub runners at times (2026-11-19, 2026-11-22; `upwell.pfeg.noaa.gov` forwards to the same server). The weekly job retries 3 times; when it still fails, the site keeps the last committed data, and `deploy.yml` publishes any `docs/site` change pushed by hand.
 - **Advisory points are tile-based:** spread over the zone on a ~30 km grid, not traced along the front line.
 - **Distances are straight-line** from harbour to point and can cross land (e.g. around Kathiawar or Sri Lanka).
 - **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat could not be located in OpenStreetMap; zones off Daman count as Maharashtra & Goa (nearest listed harbour Mumbai).

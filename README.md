@@ -89,7 +89,7 @@ uv run site.py
 python -m http.server -d docs/site
 ```
 
-A weekly GitHub Actions workflow processes the newest SST day, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages.
+A weekly GitHub Actions workflow processes the newest SST day, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages. Any other push that changes `docs/site/` is deployed by `deploy.yml`.
 
 ## Example output (2026-10-08, earlier science-quality chlorophyll)
 
