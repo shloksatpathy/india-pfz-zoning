@@ -22,7 +22,7 @@ Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.n
 
 Depth at each zone centroid comes from ETOPO1 (`etopo180` on the same SST server).
 
-Harbour names come from the Department of Fisheries *Handbook on Fisheries Statistics 2020* (Tables 13.2 and 13.3: major harbours and commissioned fishing harbours; Lakshadweep landing centres). Coordinates come from OpenStreetMap via Nominatim (© OpenStreetMap contributors, ODbL). Agro, Dholai, Pazhayar, Roychowk and Petuaghat are left out because they could not be located reliably. Bearing and distance are straight-line from the harbour to the zone centroid.
+Harbour names come from the Department of Fisheries *Handbook on Fisheries Statistics 2020* (Tables 13.2 and 13.3: major harbours and commissioned fishing harbours; Lakshadweep landing centres). Coordinates come from OpenStreetMap via Nominatim (© OpenStreetMap contributors, ODbL). Dholai, Pazhayar and Petuaghat, which OpenStreetMap does not have, use INCOIS landing-centre coordinates (WFS layer `PFZ_LandingCentres:LandingCenters_29Apr2024`). Agro and Roychowk are left out because they could not be located reliably. Bearing and distance are straight-line from the harbour to the zone centroid.
 
 Zones are clipped to India's EEZ (`india_eez.geojson`, outer boundaries of the mainland + Lakshadweep and Andaman & Nicobar EEZs) from [Marine Regions](https://www.marineregions.org), licensed CC-BY 4.0.
 

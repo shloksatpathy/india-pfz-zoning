@@ -80,7 +80,7 @@ id,region,rank,lat,lon,area_km2,sst,chl,grad,front_km,strength,depth_m,points,ha
 79,Odisha & West Bengal,17,20.94,87.04,282.4,30.26,5.704,0.057,23.7,1.4,3,1,Dhamra,NE,20,"Dhamra: NE, 20 km, depth 3 m"
 80,Odisha & West Bengal,5,21.16,87.66,809.0,30.35,3.422,0.06,96.8,5.8,23,2,Digha,S,49,"Digha: S, 49 km, depth 18 m"
 81,Gujarat,2,21.86,69.16,4173.9,28.68,2.793,0.068,834.4,56.7,25,12,Porbandar,W,18,"Porbandar: W, 18 km, depth 16 m"
-82,Odisha & West Bengal,13,21.76,88.02,326.8,30.27,4.431,0.065,30.0,2.0,2,1,Kakdwip (Harwood Point),WSW,29,"Kakdwip (Harwood Point): WSW, 29 km, depth 2 m"
+82,Odisha & West Bengal,13,21.76,88.02,326.8,30.27,4.431,0.065,30.0,2.0,2,1,Petuaghat,ESE,14,"Petuaghat: ESE, 14 km, depth 2 m"
 83,Gujarat,1,22.78,68.72,8102.4,28.71,3.918,0.071,1720.8,122.2,24,17,Jakhau,SW,33,"Jakhau: SW, 33 km, depth 17 m"
 84,Gujarat,5,22.62,69.76,356.9,29.47,2.415,0.059,40.6,2.4,5,2,Porbandar,N,103,"Porbandar: N, 103 km, depth 3 m"
 85,Gujarat,4,23.04,68.72,255.4,29.24,3.31,0.064,42.7,2.7,11,1,Jakhau,S,20,"Jakhau: S, 20 km, depth 11 m"

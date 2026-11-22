@@ -3,13 +3,16 @@
 # Names: Handbook on Fisheries Statistics 2020, Department of Fisheries, Govt. of India
 #   (Table 13.2 major fishing harbours, Table 13.3 fishing harbours "FH" commissioned till 2019-20;
 #   Lakshadweep has no FH, so its fish landing centres are used).
-# Coordinates: OpenStreetMap via Nominatim, © OpenStreetMap contributors, ODbL.
+# Coordinates: OpenStreetMap via Nominatim, © OpenStreetMap contributors, ODbL; except
+#   Dholai, Pazhayar and Petuaghat (not found in OSM): INCOIS landing centres, WFS layer
+#   PFZ_LandingCentres:LandingCenters_29Apr2024 (https://incois.gov.in/MarineFisheries/PfzWebGis).
 HARBOURS = {
     # Gujarat
     "Veraval": (20.9101, 70.3653, "Gujarat"),
     "Mangrol": (21.1242, 70.1199, "Gujarat"),
     "Porbandar": (21.6505, 69.6565, "Gujarat"),
     "Jakhau": (23.2198, 68.7142, "Gujarat"),
+    "Dholai": (20.74, 72.90, "Gujarat"),
     # Maharashtra
     "Mumbai (Sassoon Dock)": (18.9144, 72.8242, "Maharashtra & Goa"),
     "Ratnagiri": (17.2826, 73.4570, "Maharashtra & Goa"),
@@ -48,6 +51,7 @@ HARBOURS = {
     "Thengapattinam": (8.2387, 77.1731, "Tamil Nadu & Puducherry"),
     "Colachel": (8.1753, 77.2519, "Tamil Nadu & Puducherry"),
     "Mookaiyur": (9.1317, 78.4787, "Tamil Nadu & Puducherry"),
+    "Pazhayar": (11.35, 79.83, "Tamil Nadu & Puducherry"),
     # Puducherry
     "Puducherry": (11.9341, 79.8306, "Tamil Nadu & Puducherry"),
     "Karaikal": (10.9157, 79.8376, "Tamil Nadu & Puducherry"),
@@ -68,6 +72,7 @@ HARBOURS = {
     "Digha": (21.6231, 87.5083, "Odisha & West Bengal"),
     "Sultanpur (Diamond Harbour)": (22.1669, 88.2005, "Odisha & West Bengal"),
     "Kakdwip (Harwood Point)": (21.8611, 88.2466, "Odisha & West Bengal"),
+    "Petuaghat": (21.79, 87.88, "Odisha & West Bengal"),
     # Andaman & Nicobar
     "Port Blair (Phoenix Bay)": (11.6729, 92.7343, "Andaman & Nicobar"),
 }

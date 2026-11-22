@@ -22,7 +22,7 @@ sweep.py ──> validation/sweep.csv
 | `regions.py` | Region boxes (map zoom, plots), download box, `THRESHOLDS` and `MAX_POINTS` per region |
 | `fetch.py` | MUR SST (`jplMURSST41`, PFEG ERDDAP), NOAA-20 NRT 7-day chlorophyll (`noaacwN20VIIRSchlaWeekly`, CoastWatch ERDDAP), ETOPO1 depth |
 | `pfz.py` | Fronts ∩ productive water (per-pixel thresholds from the nearest harbour's region), EEZ clip, zones with holes, ranking (`rank_zones`), advisory points |
-| `harbours.py` | 54 fishing harbours with region: DoF Handbook 2020 names, OpenStreetMap coordinates |
+| `harbours.py` | 57 fishing harbours with region: DoF Handbook 2020 names, OpenStreetMap coordinates (3 from INCOIS landing centres) |
 | `run.py` | `run.py last`: newest SST day + newest chlorophyll on or before it; ranges step 7 days |
 | `site.py` | Latest 8 weeks in `docs/site/` with `web/index.html` and the EEZ |
 | `incois.py` | Archives the current INCOIS PFZ lines (WFS layer `PFZ_Automation:pfzlines`) |
@@ -64,7 +64,7 @@ Published dates (2026-11-22): 2026-10-06 – 2026-11-20, 41 – 86 zones and 120
 Problems (2026-11-22):
 - **Chlorophyll is 2 weeks old.** The NOAA-20 NRT 7-day composite has stayed at 2026-11-09 since at least 2026-11-19, while SST is current to 2026-11-20.
 - **Distances cross land.** Advisory distances are straight lines, so a zone in the Gulf of Kutch can be measured from Veraval across Kathiawar, and Palk Bay zones across Sri Lanka. The nearest harbour is chosen the same way.
-- **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat (not found in OpenStreetMap).
+- **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat (not found in OpenStreetMap). *(Dholai, Pazhayar, Petuaghat added in step 3.)*
 
 Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on the same 0.0375° grid with `time, altitude, latitude, longitude`):
 
@@ -119,7 +119,7 @@ Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on t
 
    The median is fresher and covers more; scores are a tie (mixed by region: Karnataka & Kerala better, Tamil Nadu worse on 2026-11-20); OLCI reads 16 – 20% lower than VIIRS. Decision: keep the weekly composite in production; the median code stays for a later switch (revisit if the weekly composite stays stalled or once more INCOIS days are archived).
 2. ~~Staleness warning on the page.~~ Done 2026-11-22: a warning line shows when chlorophyll is more than 10 days older than SST (2026-11-20: 11 days).
-3. Dholai, Pazhayar, Petuaghat from INCOIS landing centres.
+3. ~~Dholai, Pazhayar, Petuaghat from INCOIS landing centres.~~ Done 2026-11-22: `harbours.py` has 57 harbours. Over the 8 published weeks, 13 zones (38 points) off Daman moved from Maharashtra & Goa back to Gujarat; Dholai is the reference for 70 points, Pazhayar 8, Petuaghat 3. Roychowk and Agro remain missing.
 4. Sea-route distances and nearest harbour by sea.
 5. Final per-region thresholds, cap and ranking score (≈ 2026-12-09 or later); site rebuilt.
 
