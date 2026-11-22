@@ -18,6 +18,7 @@ from regions import REGIONS
 
 NEAR_KM = 10  # a line or point this close to the other set counts as matched
 MAX_GAP_DAYS = 3  # our output date may differ from the INCOIS date by this much
+PUBLISHED = Path("docs/site/outputs")  # our published zones, also present in CI
 
 
 def incois_segments(path):
@@ -51,10 +52,11 @@ def inside(geometry, lonlat):
 
 
 def our_date(day):
-    dates = [p.parent.name for p in Path("outputs").glob("*/zones.geojson")]
+    """Published date nearest the INCOIS day, or None if none is within MAX_GAP_DAYS."""
+    dates = [p.parent.name for p in PUBLISHED.glob("*/zones.geojson")]
     best = min(dates, key=lambda d: abs((date.fromisoformat(d) - date.fromisoformat(day)).days))
     if abs((date.fromisoformat(best) - date.fromisoformat(day)).days) > MAX_GAP_DAYS:
-        sys.exit(f"no output within {MAX_GAP_DAYS} days of {day}")
+        return None
     return best
 
 
@@ -95,7 +97,10 @@ def score(segments, zones, points):
 
 def compare(day):
     ours = our_date(day)
-    features = json.load(open(f"outputs/{ours}/zones.geojson"))["features"]
+    if ours is None:
+        print(f"INCOIS {day}: no published date within {MAX_GAP_DAYS} days, not scored yet")
+        return
+    features = json.load(open(PUBLISHED / ours / "zones.geojson"))["features"]
     zones = [f for f in features if f["geometry"]["type"] != "Point"]
     points = [f["properties"] for f in features if f["geometry"]["type"] == "Point"]
     segments = incois_segments(f"validation/incois/{day}.geojson")
@@ -141,5 +146,37 @@ def plot(day, ours, zones, points, segments):
     print(f"maps in {out}")
 
 
+def score_new():
+    """Score every archived INCOIS day that has no validation/<date>.csv yet."""
+    for path in sorted(Path("validation/incois").glob("*.geojson")):
+        if not (Path("validation") / f"{path.stem}.csv").exists():
+            compare(path.stem)
+
+
+def summary():
+    """Mean hit rate and precision per region over the scored days on which INCOIS has lines there."""
+    days = sorted(Path("validation").glob("20*.csv"))
+    totals = {name: [] for name in REGIONS}
+    for path in days:
+        for r in csv.DictReader(open(path)):
+            if r["region"] in totals and r["hit_rate"]:
+                totals[r["region"]].append(r)
+    print(f"{len(days)} scored days: {days[0].stem} – {days[-1].stem}")
+    print(f"{'region':<24}{'days':>6}{'hit':>7}{'prec':>7}{'points':>8}")
+    for name, rs in totals.items():
+        if rs:
+            hit = sum(float(r["hit_rate"]) for r in rs) / len(rs)
+            prec = sum(float(r["precision"] or 0) for r in rs) / len(rs)
+            pts = sum(int(r["our_points"]) for r in rs) / len(rs)
+            print(f"{name:<24}{len(rs):>6}{hit:>7.2f}{prec:>7.2f}{pts:>8.0f}")
+        else:
+            print(f"{name:<24}{0:>6}{'–':>7}{'–':>7}{'–':>8}")
+
+
 if __name__ == "__main__":
-    compare(sys.argv[1])
+    if sys.argv[1] == "--new":
+        score_new()
+    elif sys.argv[1] == "--summary":
+        summary()
+    else:
+        compare(sys.argv[1])

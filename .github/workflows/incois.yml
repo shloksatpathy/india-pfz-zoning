@@ -16,11 +16,13 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Archive current INCOIS PFZ lines
         run: uv run incois.py
+      - name: Score archived days against published zones
+        run: uv run validate.py --new
       - name: Commit archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add validation/incois
-          git diff --cached --quiet || git commit -m "INCOIS PFZ archive $(date -u +%F)"
+          git add validation
+          git diff --cached --quiet || git commit -m "INCOIS PFZ archive and scores $(date -u +%F)"
           git pull --rebase
           git push

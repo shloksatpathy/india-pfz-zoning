@@ -66,7 +66,7 @@ Problem: the map shows every zone that passes the thresholds, so a fisher sees 1
 So scores accumulate without manual runs.
 
 - `validate.py` reads our published zones from `docs/site/outputs/` (already in the repo and in CI) instead of the local `outputs/`.
-- `incois.yml`: after archiving, run `validate.py <INCOIS date>` when a published date is within 3 days, and commit `validation/<date>.csv`. Maps stay local (not in CI).
+- `incois.yml`: after archiving, run `validate.py --new`, which scores every archived day without a `validation/<date>.csv` when a published date is within 3 days, and commit `validation/`. Maps go to the ignored `outputs/validation/`.
 - `validate.py --summary`: mean hit rate and precision per region over all `validation/<date>.csv`, printed as a table, for PLAN.md updates.
 
 ### Step 2: Rank zones
@@ -108,7 +108,7 @@ Hit rate is 0 at every setting.
 
 ### Milestones
 
-1. Daily automatic scoring in `incois.yml`; `validate.py --summary`.
+1. ~~Daily automatic scoring in `incois.yml`; `validate.py --summary`.~~ Done 2026-11-22: `validate.py --new` scores every archived day without a `validation/<date>.csv` against `docs/site/outputs/` (days with no published date within 3 days wait for a later one). 3 days scored so far.
 2. Zone strength scores and per-region `rank`.
 3. `MAX_POINTS` cap; web list by rank with "Show all zones".
 4. Sweep over score × cap × thresholds; preliminary table.
