@@ -22,6 +22,7 @@ sweep.py ──> validation/sweep.csv
 | `regions.py` | Region boxes (map zoom, plots), download box, `THRESHOLDS` and `MAX_POINTS` per region |
 | `fetch.py` | MUR SST (`jplMURSST41`, PFEG ERDDAP), NOAA-20 NRT 7-day chlorophyll (`noaacwN20VIIRSchlaWeekly`, CoastWatch ERDDAP), ETOPO1 depth |
 | `pfz.py` | Fronts ∩ productive water (per-pixel thresholds from the nearest harbour's region), EEZ clip, zones with holes, ranking (`rank_zones`), advisory points |
+| `sea.py` | Sea-route distance and nearest harbour by sea (Dijkstra over a 0.04° ocean grid, `sea_mask.npz`) |
 | `harbours.py` | 57 fishing harbours with region: DoF Handbook 2020 names, OpenStreetMap coordinates (3 from INCOIS landing centres) |
 | `run.py` | `run.py last`: newest SST day + newest chlorophyll on or before it; ranges step 7 days |
 | `site.py` | Latest 8 weeks in `docs/site/` with `web/index.html` and the EEZ |
@@ -63,7 +64,7 @@ Published dates (2026-11-22): 2026-10-06 – 2026-11-20, 41 – 86 zones and 120
 
 Problems (2026-11-22):
 - **Chlorophyll is 2 weeks old.** The NOAA-20 NRT 7-day composite has stayed at 2026-11-09 since at least 2026-11-19, while SST is current to 2026-11-20.
-- **Distances cross land.** Advisory distances are straight lines, so a zone in the Gulf of Kutch can be measured from Veraval across Kathiawar, and Palk Bay zones across Sri Lanka. The nearest harbour is chosen the same way.
+- **Distances cross land.** Advisory distances are straight lines, so a zone in the Gulf of Kutch can be measured from Veraval across Kathiawar, and Palk Bay zones across Sri Lanka. The nearest harbour is chosen the same way. *(Fixed in step 4.)*
 - **Harbours missing:** Agro, Dholai, Pazhayar, Roychowk and Petuaghat (not found in OpenStreetMap). *(Dholai, Pazhayar, Petuaghat added in step 3.)*
 
 Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on the same 0.0375° grid with `time, altitude, latitude, longitude`):
@@ -120,7 +121,7 @@ Chlorophyll options checked on 2026-11-22 (CoastWatch ERDDAP; all `chlor_a` on t
    The median is fresher and covers more; scores are a tie (mixed by region: Karnataka & Kerala better, Tamil Nadu worse on 2026-11-20); OLCI reads 16 – 20% lower than VIIRS. Decision: keep the weekly composite in production; the median code stays for a later switch (revisit if the weekly composite stays stalled or once more INCOIS days are archived).
 2. ~~Staleness warning on the page.~~ Done 2026-11-22: a warning line shows when chlorophyll is more than 10 days older than SST (2026-11-20: 11 days).
 3. ~~Dholai, Pazhayar, Petuaghat from INCOIS landing centres.~~ Done 2026-11-22: `harbours.py` has 57 harbours. Over the 8 published weeks, 13 zones (38 points) off Daman moved from Maharashtra & Goa back to Gujarat; Dholai is the reference for 70 points, Pazhayar 8, Petuaghat 3. Roychowk and Agro remain missing.
-4. Sea-route distances and nearest harbour by sea.
+4. ~~Sea-route distances and nearest harbour by sea.~~ Done 2026-11-22: `sea.py` builds an 8-connected 0.04° ocean grid from `sea_mask.npz` (MUR land mask, coarsened so a cell is ocean if any 0.02° pixel is; 7 KB, committed so CI needs no SST) and runs Dijkstra from all 57 harbours (~2 s per run, no cache). Advisory distance, nearest harbour, region and per-pixel thresholds all use it; bearing stays the straight compass direction. Over the 8 published weeks (1,434 points): 82 points changed harbour, 1 changed region; where the harbour stayed, sea routes are a median 4.5% longer than straight lines (49 points over 20%, max 52%). Main fix: Gulf of Kutch points went from "Porbandar: N, 104 km" (across Kathiawar) to "Jakhau: SE, 136 km". Two far-offshore Yanam zones now exceed 300 km by sea and are dropped. The Gulf of Mannar connects to Palk Bay through the Pamban channel on this grid.
 5. Final per-region thresholds, cap and ranking score (≈ 2026-12-09 or later); site rebuilt.
 
 ## Known limitations

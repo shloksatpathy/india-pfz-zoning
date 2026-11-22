@@ -12,8 +12,8 @@ import numpy as np
 import xarray as xr
 from contourpy import contour_generator
 from scipy import ndimage
-from scipy.spatial import cKDTree
 
+import sea
 from harbours import HARBOURS
 from regions import MAX_POINTS, REGIONS, THRESHOLDS
 
@@ -26,7 +26,6 @@ OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
 POINT_TILE_KM = 30  # one advisory point per tile of this size
 MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
 MAX_HARBOUR_KM = 300  # zones farther than this from every harbour are dropped
-EARTH_KM = 6371.0
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -53,11 +52,10 @@ def km_xy(lon, lat):
 
 
 def threshold_grids(sst):
-    """Per-pixel GRAD_MIN and CHL_MIN from the region of the nearest harbour."""
+    """Per-pixel GRAD_MIN and CHL_MIN from the region of the nearest harbour by sea."""
     lon, lat = np.meshgrid(sst.longitude.values, sst.latitude.values)
     harbours = list(HARBOURS.values())
-    tree = cKDTree(km_xy(np.array([h[1] for h in harbours]), np.array([h[0] for h in harbours])))
-    nearest = tree.query(km_xy(lon.ravel(), lat.ravel()))[1].reshape(lon.shape)
+    nearest = sea.nearest(lat, lon)[0]
     grad_min = np.array([THRESHOLDS[h[2]][0] for h in harbours])[nearest]
     chl_min = np.array([THRESHOLDS[h[2]][1] for h in harbours])[nearest]
     return sst.copy(data=grad_min), sst.copy(data=chl_min)
@@ -91,18 +89,16 @@ def label_zones(pfz, ocean):
 
 
 def nearest_harbour(lat, lon):
-    best = None
-    for name, (hlat, hlon, _) in HARBOURS.items():
-        p1, p2 = np.deg2rad(hlat), np.deg2rad(lat)
-        dlon = np.deg2rad(lon - hlon)
-        a = np.sin((p2 - p1) / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dlon / 2) ** 2
-        km = 2 * EARTH_KM * np.arcsin(np.sqrt(a))
-        if best is None or km < best[1]:
-            y = np.sin(dlon) * np.cos(p2)
-            x = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dlon)
-            bearing = np.rad2deg(np.arctan2(y, x)) % 360
-            best = (name, km, COMPASS[int((bearing + 11.25) // 22.5) % 16])
-    return best
+    """Nearest harbour and distance by sea route; bearing is the straight compass direction from it."""
+    k, km = sea.nearest([lat], [lon])
+    name = list(HARBOURS)[k[0]]
+    hlat, hlon, _ = HARBOURS[name]
+    p1, p2 = np.deg2rad(hlat), np.deg2rad(lat)
+    dlon = np.deg2rad(lon - hlon)
+    y = np.sin(dlon) * np.cos(p2)
+    x = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dlon)
+    bearing = np.rad2deg(np.arctan2(y, x)) % 360
+    return name, float(km[0]), COMPASS[int((bearing + 11.25) // 22.5) % 16]
 
 
 def outline(labels, label, box, lat, lon):
