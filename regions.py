@@ -11,3 +11,16 @@ REGIONS = {
 }
 
 BBOX = (6.0, 24.5, 66.0, 94.5)
+
+# Per-region thresholds: (GRAD_MIN °C/km SST front, CHL_MIN mg/m³ productive water).
+# A pixel uses the values of the region of its nearest harbour. Phase 1 values; see PLAN.md step 5.
+THRESHOLDS = {
+    "Gujarat": (0.05, 0.3),
+    "Maharashtra & Goa": (0.05, 0.3),
+    "Karnataka & Kerala": (0.05, 0.3),
+    "Lakshadweep": (0.05, 0.3),
+    "Tamil Nadu & Puducherry": (0.05, 0.3),
+    "Andhra Pradesh": (0.05, 0.3),
+    "Odisha & West Bengal": (0.05, 0.3),
+    "Andaman & Nicobar": (0.05, 0.3),
+}

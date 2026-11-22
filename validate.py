@@ -13,15 +13,11 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from harbours import HARBOURS
-from pfz import KM_PER_DEG, nearest_harbour
+from pfz import km_xy, nearest_harbour
 from regions import REGIONS
 
 NEAR_KM = 10  # a line or point this close to the other set counts as matched
 MAX_GAP_DAYS = 3  # our output date may differ from the INCOIS date by this much
-
-
-def km_xy(lon, lat):
-    return np.column_stack([lon * KM_PER_DEG * np.cos(np.deg2rad(lat)), lat * KM_PER_DEG])
 
 
 def incois_segments(path):

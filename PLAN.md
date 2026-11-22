@@ -92,7 +92,7 @@ INCOIS has no archive of past advisories, so collect the live ones from now on.
 
 ### Step 5: Per-region thresholds
 
-- Move `GRAD_MIN` and `CHL_MIN` into `regions.py` per region (default to current values).
+- ~~Move `GRAD_MIN` and `CHL_MIN` into `regions.py` per region (default to current values).~~ Done 2026-11-22: `THRESHOLDS` in `regions.py`; each pixel uses the values of its nearest harbour's region (`threshold_grids` in `pfz.py`). Same values give byte-identical output.
 - Needs a few weeks of archived INCOIS dates first (archive started 2026-11-18).
 - Sweep both thresholds per region over the archived dates; pick values that maximise hit rate without zone counts far above INCOIS.
 - Expected: higher `CHL_MIN` for the productive Gujarat and Odisha / West Bengal shelves, lower for Lakshadweep and Andaman & Nicobar (oligotrophic water). Tighter thresholds there also shrink the oversized zones.

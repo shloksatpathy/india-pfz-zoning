@@ -12,12 +12,11 @@ import numpy as np
 import xarray as xr
 from contourpy import contour_generator
 from scipy import ndimage
+from scipy.spatial import cKDTree
 
 from harbours import HARBOURS
-from regions import REGIONS
+from regions import REGIONS, THRESHOLDS
 
-GRAD_MIN = 0.05  # °C/km, SST front threshold
-CHL_MIN = 0.3  # mg/m³, productive water threshold
 DILATE = 2  # pixels, joins nearby front pixels into one zone
 MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
 KM_PER_DEG = 111.32
@@ -37,6 +36,21 @@ def load(sst_date, chl_date):
     chl = chl.interp_like(sst, method="nearest")
     depth = -xr.open_dataset("data/etopo.nc").altitude.sortby("latitude")
     return sst, chl, depth
+
+
+def km_xy(lon, lat):
+    return np.column_stack([lon * KM_PER_DEG * np.cos(np.deg2rad(lat)), lat * KM_PER_DEG])
+
+
+def threshold_grids(sst):
+    """Per-pixel GRAD_MIN and CHL_MIN from the region of the nearest harbour."""
+    lon, lat = np.meshgrid(sst.longitude.values, sst.latitude.values)
+    harbours = list(HARBOURS.values())
+    tree = cKDTree(km_xy(np.array([h[1] for h in harbours]), np.array([h[0] for h in harbours])))
+    nearest = tree.query(km_xy(lon.ravel(), lat.ravel()))[1].reshape(lon.shape)
+    grad_min = np.array([THRESHOLDS[h[2]][0] for h in harbours])[nearest]
+    chl_min = np.array([THRESHOLDS[h[2]][1] for h in harbours])[nearest]
+    return sst.copy(data=grad_min), sst.copy(data=chl_min)
 
 
 def sst_gradient(sst):
@@ -226,25 +240,26 @@ def plot_region(out, date, name, sst, chl, labels, zones):
 
     fig, ax = plt.subplots(figsize=(8, 8), constrained_layout=True)
     s.plot(ax=ax, cmap="RdYlBu_r", cbar_kwargs={"label": "SST (°C)", "shrink": 0.7})
-    ax.contour(c.longitude, c.latitude, c >= CHL_MIN, levels=[0.5], colors="green", linewidths=0.6)
+    chl_min = THRESHOLDS[name][1]
+    ax.contour(c.longitude, c.latitude, c >= chl_min, levels=[0.5], colors="green", linewidths=0.6)
     ax.contourf(z.longitude, z.latitude, z, levels=[0.5, 1.5], colors="none", hatches=["////"])
     ax.contour(z.longitude, z.latitude, z, levels=[0.5], colors="black", linewidths=1)
     for zone in zones:
         if zone["region"] == name:
             ax.annotate(str(zone["id"]), (zone["lon"], zone["lat"]), fontsize=7, fontweight="bold")
     ax.set_aspect("equal")
-    ax.set_title(f"{name} — {date}\nblack: PFZ, green: chl ≥ {CHL_MIN} mg/m³")
+    ax.set_title(f"{name} — {date}\nblack: PFZ, green: chl ≥ {chl_min} mg/m³")
     slug = name.lower().replace(" & ", "_").replace(" ", "_")
     fig.savefig(out / f"{slug}.png", dpi=110)
     plt.close(fig)
 
 
-def plot_check(out, date, sst, grad, chl, pfz):
+def plot_check(out, date, sst, grad, grad_min, chl, pfz):
     fig, axes = plt.subplots(1, 3, figsize=(18, 6), constrained_layout=True)
 
     sst.plot(ax=axes[0], cmap="RdYlBu_r", cbar_kwargs={"label": "SST (°C)"})
-    axes[0].contour(sst.longitude, sst.latitude, grad >= GRAD_MIN, levels=[0.5], colors="k", linewidths=0.4)
-    axes[0].set_title(f"SST + fronts (≥ {GRAD_MIN} °C/km)")
+    axes[0].contour(sst.longitude, sst.latitude, grad >= grad_min, levels=[0.5], colors="k", linewidths=0.4)
+    axes[0].set_title("SST + fronts (per-region gradient threshold)")
 
     np.log10(chl).plot(ax=axes[1], cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1], cbar_kwargs={"label": "log10 chl (mg/m³)"})
     axes[1].set_title("Chlorophyll-a")
@@ -252,7 +267,7 @@ def plot_check(out, date, sst, grad, chl, pfz):
     land = sst.isnull()
     land.where(land).plot(ax=axes[2], cmap="Greys", add_colorbar=False, vmin=0, vmax=2)
     pfz.where(pfz).plot(ax=axes[2], cmap="autumn", add_colorbar=False)
-    axes[2].set_title(f"PFZ mask (front AND chl ≥ {CHL_MIN})")
+    axes[2].set_title("PFZ mask (front AND productive water)")
 
     for ax in axes:
         ax.set_aspect("equal")
@@ -281,11 +296,12 @@ def run(sst_date, chl_date):
     sst, chl, depth = load(sst_date, chl_date)
     ocean = sst.notnull() & eez_mask(sst)
     grad = sst_gradient(sst)
-    pfz = (grad >= GRAD_MIN) & (chl >= CHL_MIN) & ocean
+    grad_min, chl_min = threshold_grids(sst)
+    pfz = (grad >= grad_min) & (chl >= chl_min) & ocean
     labels, ids = label_zones(pfz, ocean)
     zones = describe_zones(sst, chl, depth, pfz, labels, ids)
 
-    plot_check(out, sst_date, sst, grad, chl, pfz)
+    plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
     write_tables(out, zones, sst_date, chl_date)
     write_overlays(out, sst, chl)
     for name in REGIONS:
