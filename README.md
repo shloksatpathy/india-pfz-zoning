@@ -19,6 +19,8 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 | Chlorophyll-a | `noaacwN20VIIRSchlaWeekly` (NOAA-20 VIIRS, near real time) | ~0.0375° | 7-day composite, new date daily |
 | Sea level anomaly | `noaacwBLENDEDsshDaily` (multi-mission altimetry, near real time) | 0.25° | Daily; eddies = anomaly from the ~4° local mean |
 | Wind speed, Ekman upwelling | `erdQCwindproducts3day` (Metop-C ASCAT, near real time) | 0.33° | 3-day composite, daily |
+| Geostrophic currents | `noaacwBLENDEDNRTcurrentsDaily` (altimetry, near real time) | 0.25° | Daily |
+| Sea surface salinity | `noaacwSMAPsssDaily` (SMAP, near real time) | 0.25° | Daily; mean of the 3 newest days |
 | Chlorophyll-a, when the composite is > 10 days older than SST | `noaacwN20VIIRSchlaDaily`, `noaacwNPPVIIRSchlaDaily`, `noaacwS3AOLCIchlaDaily`, `noaacwS3BOLCIchlaDaily` | ~0.0375° | Daily; per-pixel median of the 7 days ending at the SST date |
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
@@ -79,8 +81,8 @@ Single steps (weekly composite) take both dates: `uv run fetch.py 2026-11-17 202
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms` and advisory text such as `Veraval: SW, 45 km, depth 60 m`
-- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), local sea level anomaly `sla_cm` with its `eddy` label (cyclonic ≤ −5 cm, anticyclonic ≥ +5 cm) the share of the zone on an eddy edge `eddy_edge`, mean wind `wind_ms` and Ekman upwelling `upwelling_m_day`, depth_m, number of points, and the advisory of the point closest to its harbour)
+- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms`, current `current_kn` flowing to `current_to`, and advisory text such as `Veraval: SW, 45 km, depth 60 m`
+- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), local sea level anomaly `sla_cm` with its `eddy` label (cyclonic ≤ −5 cm, anticyclonic ≥ +5 cm) the share of the zone on an eddy edge `eddy_edge`, mean wind `wind_ms` and Ekman upwelling `upwelling_m_day`, mean salinity `sss` and the share on a salinity front `sss_front`, depth_m, number of points, and the advisory of the point closest to its harbour)
 - `zones.geojson`: zone outlines as polygons (with holes) plus the advisory points (`kind: "point"`)
 - `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
 

@@ -18,10 +18,12 @@ CHL_DAILY = {
     "s3b": "noaacwS3BOLCIchlaDaily",  # Sentinel-3B OLCI
 }
 CHL_DAYS = 7  # daily composite window, ending at the SST date
-# other ocean parameters, daily: name -> (dataset URL, variables, index for the extra altitude axis or "")
+# other ocean parameters, daily: name -> (dataset URL, variables, index for the extra altitude axis or "", days averaged)
 EXTRA = {
-    "sla": (f"{COASTWATCH}noaacwBLENDEDsshDaily", ["sla"], ""),
-    "wind": (f"{PFEG}erdQCwindproducts3day", ["wind_speed", "ekman_upwelling"], "[(10.0)]"),  # Metop-C ASCAT, 3-day
+    "sla": (f"{COASTWATCH}noaacwBLENDEDsshDaily", ["sla"], "", 1),
+    "wind": (f"{PFEG}erdQCwindproducts3day", ["wind_speed", "ekman_upwelling"], "[(10.0)]", 1),  # Metop-C ASCAT, 3-day
+    "cur": (f"{COASTWATCH}noaacwBLENDEDNRTcurrentsDaily", ["u_current", "v_current"], "", 1),  # geostrophic, altimetry
+    "sss": (f"{COASTWATCH}noaacwSMAPsssDaily", ["sss"], "[(0.0)]", 3),  # SMAP; one day covers 40 - 85% of the sea, 3 days ~97%
 }
 EXTRA_LOOKBACK_DAYS = 10
 
@@ -61,12 +63,13 @@ def fetch_daily_chl(sst_date):
 
 
 def fetch_extra(name, sst_date):
-    """Newest day on or before sst_date of an EXTRA dataset, saved as data/<name>_<sst_date>.nc."""
-    url, variables, alt = EXTRA[name]
+    """Newest days on or before sst_date of an EXTRA dataset, saved as data/<name>_<sst_date>.nc."""
+    url, variables, alt, n = EXTRA[name]
     start = date.fromisoformat(sst_date) - timedelta(days=EXTRA_LOOKBACK_DAYS)
-    day = max(d for d in erddap_dates(f"{url}.csv?time[({start}):1:(last)]") if d <= sst_date)
+    days = [d for d in erddap_dates(f"{url}.csv?time[({start}):1:(last)]") if d <= sst_date][-n:]
     lat_min, lat_max, lon_min, lon_max = BBOX
-    query = ",".join(f"{v}[({day})]{alt}[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]" for v in variables)
+    box = f"[({days[0]}):1:({days[-1]})]{alt}[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]"
+    query = ",".join(f"{v}{box}" for v in variables)
     download(f"{url}.nc?{query}", Path("data") / f"{name}_{sst_date}.nc")
 
 

@@ -30,6 +30,8 @@ CHL_FRONT_MIN = 0.02  # log10(mg/m³) per km, ~90th percentile over ocean pixels
 SLA_WINDOW = 17  # 0.25° cells (~4°); eddy anomaly = sea level anomaly minus its mean over this window
 EDDY_CM = 5  # local anomaly at or beyond ±5 cm: cyclonic / anticyclonic eddy
 EDDY_EDGE_MIN = 0.14  # cm/km sea level gradient, ~90th percentile in the 8 published weeks
+SSS_FRONT_MIN = 0.05  # PSU/km salinity gradient (3-day SMAP mean), ~90th percentile in the 8 published weeks
+KNOTS = 1.94384  # per m/s
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -73,6 +75,17 @@ def load_extra(sst_date, sst):
     grids["wind_ms"] = fill_nearest(ds.wind_speed).interp_like(sst)  # coastal points get the nearest ocean cell's wind
     grids["upwelling_m_day"] = (ds.ekman_upwelling * 86400).interp_like(sst)
     dates["wind"] = str(ds.time.values)[:10]
+
+    ds = xr.open_dataset(f"data/cur_{sst_date}.nc").squeeze("time").sortby("latitude")
+    grids["u_current"] = ds.u_current.interp_like(sst)
+    grids["v_current"] = ds.v_current.interp_like(sst)
+    dates["cur"] = str(ds.time.values)[:10]
+
+    ds = xr.open_dataset(f"data/sss_{sst_date}.nc").squeeze("altitude").sortby("latitude")
+    sss = ds.sss.mean("time")
+    grids["sss"] = sss.interp_like(sst)
+    grids["sss_front"] = (gradient(sss) >= SSS_FRONT_MIN).where(np.isfinite(sss.values)).interp_like(sst)
+    dates["sss"] = str(ds.time.values[-1])[:10]
     return grids, dates
 
 
@@ -93,6 +106,17 @@ def zone_mean(values, labels, ids):
 def point_value(grid, lat, lon):
     v = float(grid.sel(latitude=lat, longitude=lon, method="nearest"))
     return None if np.isnan(v) else v
+
+
+def current(u, v):
+    """Speed (knots) and the compass direction the current flows to."""
+    if u is None or v is None:
+        return None, None
+    return round(float(np.hypot(u, v) * KNOTS), 1), compass(np.rad2deg(np.arctan2(u, v)) % 360)
+
+
+def compass(bearing):
+    return COMPASS[int((bearing + 11.25) // 22.5) % 16]
 
 
 def rounded(v, digits):
@@ -163,7 +187,7 @@ def nearest_harbour(lat, lon):
     y = np.sin(dlon) * np.cos(p2)
     x = np.cos(p1) * np.sin(p2) - np.sin(p1) * np.cos(p2) * np.cos(dlon)
     bearing = np.rad2deg(np.arctan2(y, x)) % 360
-    return name, float(km[0]), COMPASS[int((bearing + 11.25) // 22.5) % 16]
+    return name, float(km[0]), compass(bearing)
 
 
 def outline(labels, label, box, lat, lon):
@@ -246,17 +270,24 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
     eddy_edge = zone_mean(extra["eddy_edge"].values, labels, ids)
     wind = zone_mean(extra["wind_ms"].values, labels, ids)
     upwelling = zone_mean(extra["upwelling_m_day"].values, labels, ids)
+    sss = zone_mean(extra["sss"].values, labels, ids)
+    sss_front = zone_mean(extra["sss_front"].values, labels, ids)
 
     zones = []
-    for label, area, s, c, g, fkm, cfkm, sla, edge, w, up in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge, wind, upwelling):
+    for label, area, s, c, g, fkm, cfkm, sla, edge, w, up, sal, sfront in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge, wind, upwelling, sss, sss_front):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
         zlat, zlon = nearest_pixel(plat, plon, plat.mean(), plon.mean())
-        points = [
-            {**advisory(plat_, plon_, depth), "wind_ms": rounded(point_value(extra["wind_ms"], plat_, plon_), 1)}
-            for plat_, plon_ in tile_points(plat, plon)
-        ]
+        points = []
+        for plat_, plon_ in tile_points(plat, plon):
+            kn, to = current(point_value(extra["u_current"], plat_, plon_), point_value(extra["v_current"], plat_, plon_))
+            points.append({
+                **advisory(plat_, plon_, depth),
+                "wind_ms": rounded(point_value(extra["wind_ms"], plat_, plon_), 1),
+                "current_kn": kn,
+                "current_to": to,
+            })
         closest = min(points, key=lambda pt: pt["distance_km"])
         if closest["distance_km"] > MAX_HARBOUR_KM:
             continue
@@ -279,6 +310,8 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
             "eddy_edge": rounded(edge, 2),
             "wind_ms": rounded(w, 1),
             "upwelling_m_day": rounded(up, 2),
+            "sss": rounded(sal, 2),
+            "sss_front": rounded(sfront, 2),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
@@ -308,8 +341,8 @@ def rank_zones(zones, score, max_points):
     return zones
 
 
-FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
-POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "sss", "sss_front", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "current_kn", "current_to", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
