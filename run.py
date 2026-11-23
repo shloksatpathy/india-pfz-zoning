@@ -25,6 +25,15 @@ def date_pairs(start, end):
     return [(s, max(c for c in chl_dates if c <= s)) for s in reversed(sst_dates)]
 
 
+def choose_chl(sst_date, chl_date):
+    """Weekly composite, or the multi-sensor daily median when the composite is more than STALE_DAYS older than SST."""
+    if (date.fromisoformat(sst_date) - date.fromisoformat(chl_date)).days <= STALE_DAYS:
+        fetch.fetch_chl(chl_date)
+        return chl_date, None
+    chl_days = fetch.fetch_daily_chl(sst_date)
+    return max(d for _, d in chl_days), chl_days
+
+
 def write_index(root):
     entries = []
     for path in sorted(Path(root).glob("*/zones.geojson")):
@@ -58,11 +67,6 @@ if __name__ == "__main__":
         fetch.fetch(sst_date)
         for name in fetch.EXTRA:
             fetch.fetch_extra(name, sst_date)
-        chl_days = None
-        if (date.fromisoformat(sst_date) - date.fromisoformat(chl_date)).days > STALE_DAYS:
-            chl_days = fetch.fetch_daily_chl(sst_date)
-            chl_date = max(d for _, d in chl_days)
-        else:
-            fetch.fetch_chl(chl_date)
+        chl_date, chl_days = choose_chl(sst_date, chl_date)
         pfz.run(sst_date, chl_date, chl_days)
     write_index("outputs")

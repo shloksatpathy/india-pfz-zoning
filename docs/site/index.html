@@ -32,6 +32,8 @@
   .toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
   .toggle input { width: 20px; height: 20px; }
   li small { color: var(--muted); }
+  .wind { color: #b02a37; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .wind { color: #ff8a8a; } }
   .empty { padding: 16px 4px; color: var(--muted); }
 </style>
 </head>
@@ -57,13 +59,14 @@
   </div>
   <label class="toggle"><input type="checkbox" id="showAll"> Show all zones (lower-ranked zones without advisory points)</label>
   <ul id="list"></ul>
-  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS 7-day composite, or when that is more than 10 days older than SST, the median of the past 7 days of NOAA-20 and S-NPP VIIRS and Sentinel-3A/B OLCI daily images (near real time). Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Distances are by sea from the harbour; bearings are compass directions from the harbour. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
+  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS 7-day composite, or when that is more than 10 days older than SST, the median of the past 7 days of NOAA-20 and S-NPP VIIRS and Sentinel-3A/B OLCI daily images (near real time). Sea level and currents: NOAA multi-mission altimetry. Wind and upwelling: Metop-C ASCAT. Salinity: NASA SMAP, 3-day mean. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Distances are by sea from the harbour; bearings are compass directions from the harbour. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
 </main>
 <script>
 const SST_RANGE = "SST 26 – 32 °C";
 const STALE_DAYS = 10;  // warn when chlorophyll is this much older than SST
 const CHL_RANGE = "Chlorophyll 0.03 – 10 mg/m³";
 const SENSORS = { n20: "NOAA-20", npp: "S-NPP", s3a: "Sentinel-3A", s3b: "Sentinel-3B" };
+const STRONG_WIND = 10;  // m/s, ~20 knots
 
 const map = L.map("map");
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -112,14 +115,39 @@ function chlColor(chl) {
   return chl < 0.5 ? "#3b528b" : chl < 1 ? "#21918c" : chl < 3 ? "#5ec962" : "#fde725";
 }
 
+function num(v, unit) {
+  return v === null ? "–" : `${v} ${unit}`;
+}
+
+function eddyText(p) {
+  if (p.eddy === null) return "Eddy: no data";
+  const cm = `${p.sla_cm > 0 ? "+" : ""}${p.sla_cm} cm`;
+  return p.eddy === "none" ? `No eddy (sea level ${cm})` : `${p.eddy === "cyclonic" ? "Cyclonic" : "Anticyclonic"} eddy (${cm})`;
+}
+
+function upwellingText(v) {
+  if (v === null) return "Upwelling –";
+  return v > 0 ? `Upwelling ${v} m/day` : `Downwelling ${-v} m/day`;
+}
+
+function currentText(p) {
+  return p.current_kn === null ? "Current –" : `Current ${p.current_kn} kn to ${p.current_to}`;
+}
+
+function windNote(w) {
+  return w !== null && w >= STRONG_WIND ? `<br><span class="wind">Strong wind: check the INCOIS ocean state forecast before going out.</span>` : "";
+}
+
 function popup(p) {
   return `<b>Zone ${p.id}, ${p.region}</b><br>Rank ${p.rank} in region · ${p.points} points · nearest: ${p.advisory}<br>` +
-    `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³`;
+    `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³<br>` +
+    `Chlorophyll fronts ${Math.round(p.chl_front_km)} km · ${eddyText(p)}<br>` +
+    `Wind ${num(p.wind_ms, "m/s")} · ${upwellingText(p.upwelling_m_day)} · Salinity ${num(p.sss, "PSU")}` + windNote(p.wind_ms);
 }
 
 function pointPopup(p) {
   return `<b>${p.advisory}</b><br>Zone ${p.zone_id} (rank ${p.rank}), point ${p.point} · ${p.region}<br>` +
-    `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E`;
+    `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E<br>Wind ${num(p.wind_ms, "m/s")} · ${currentText(p)}` + windNote(p.wind_ms);
 }
 
 function focus(f) {
@@ -149,6 +177,7 @@ function showList() {
     const li = document.createElement("li");
     li.className = "zone";
     li.innerHTML = `<small>#${p.rank} ${p.region} · Zone ${p.id} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³` +
+      (p.eddy === "cyclonic" || p.eddy === "anticyclonic" ? ` · ${p.eddy} eddy` : "") +
       (p.points > 0 ? "" : " · no advisory points") + `</small>`;
     li.onclick = () => focus(zone);
     list.appendChild(li);
@@ -157,7 +186,9 @@ function showList() {
     for (const pt of points) {
       const item = document.createElement("li");
       item.className = "point";
-      item.innerHTML = `<b>${pt.properties.advisory}</b>`;
+      const q = pt.properties;
+      item.innerHTML = `<b>${q.advisory}</b><small> · wind ${num(q.wind_ms, "m/s")} · ${currentText(q).toLowerCase()}</small>` +
+        (q.wind_ms !== null && q.wind_ms >= STRONG_WIND ? ` <span class="wind">strong wind</span>` : "");
       item.onclick = () => focus(pt);
       list.appendChild(item);
     }

@@ -5,6 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import pfz
+import run
 import validate
 from regions import REGIONS
 
@@ -14,6 +15,13 @@ SCORES = {
     "grad": lambda z: z["grad"],
     "front_km": lambda z: z["front_km"],
     "grad_x_front": pfz.strength,
+    # grad × front_km raised by the other ocean parameters (missing values count as 0)
+    "x_chl_front": lambda z: z["grad"] * (z["front_km"] + z["chl_front_km"]),
+    "x_eddy": lambda z: pfz.strength(z) * (1 + (z["eddy_edge"] or 0) + (z["eddy"] == "cyclonic")),
+    "x_upwelling": lambda z: pfz.strength(z) * (1 + ((z["upwelling_m_day"] or 0) > 0)),
+    "x_sss_front": lambda z: pfz.strength(z) * (1 + (z["sss_front"] or 0)),
+    "x_all": lambda z: z["grad"] * (z["front_km"] + z["chl_front_km"]) * (1 + (z["eddy_edge"] or 0) + (z["eddy"] == "cyclonic"))
+    * (1 + ((z["upwelling_m_day"] or 0) > 0)) * (1 + (z["sss_front"] or 0)),
 }
 CAPS = [5, 10, 20, None]  # advisory points per region; None = no cap
 MIN_HIT = 0.5  # pick the best precision among combinations reaching this hit rate
@@ -27,7 +35,7 @@ def chl_date_for(day):
 def sweep(days):
     rows = []
     for day in days:
-        sst, chl, depth = pfz.load(day, chl_date_for(day))
+        sst, chl, depth = pfz.load(day, *run.choose_chl(day, chl_date_for(day)))
         ocean = sst.notnull() & pfz.eez_mask(sst)
         grad = pfz.gradient(sst)
         extra = pfz.load_extra(day, sst)[0]
