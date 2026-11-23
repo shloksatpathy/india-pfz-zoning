@@ -27,6 +27,9 @@ POINT_TILE_KM = 30  # one advisory point per tile of this size
 MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
 MAX_HARBOUR_KM = 300  # zones farther than this from every harbour are dropped
 CHL_FRONT_MIN = 0.02  # log10(mg/m³) per km, ~90th percentile over ocean pixels in the 8 published weeks
+SLA_WINDOW = 17  # 0.25° cells (~4°); eddy anomaly = sea level anomaly minus its mean over this window
+EDDY_CM = 5  # local anomaly at or beyond ±5 cm: cyclonic / anticyclonic eddy
+EDDY_EDGE_MIN = 0.14  # cm/km sea level gradient, ~90th percentile in the 8 published weeks
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -50,6 +53,36 @@ def daily_chl(sst, days):
         for sensor, d in days
     ]
     return xr.concat(layers, "layer").median("layer")
+
+
+def load_extra(sst_date, sst):
+    """Other ocean parameters on the SST grid (bilinear), and the date of each source."""
+    ds = xr.open_dataset(f"data/sla_{sst_date}.nc")
+    sla = ds.sla.squeeze("time").sortby("latitude") * 100
+    ok = np.isfinite(sla.values)
+    with np.errstate(invalid="ignore", divide="ignore"):  # windows with no ocean
+        background = ndimage.uniform_filter(np.where(ok, sla.values, 0), SLA_WINDOW) / ndimage.uniform_filter(ok * 1.0, SLA_WINDOW)
+    edge = (gradient(sla) >= EDDY_EDGE_MIN).where(ok)
+    grids = {
+        "sla_cm": (sla - background).interp_like(sst),
+        "eddy_edge": edge.interp_like(sst),
+    }
+    dates = {"sla": str(ds.time.values[0])[:10]}
+    return grids, dates
+
+
+def zone_mean(values, labels, ids):
+    """Mean over each zone's pixels that have data; None for a zone with none."""
+    ok = np.isfinite(values)
+    n = ndimage.sum(ok, labels, ids)
+    s = ndimage.sum(np.where(ok, values, 0), labels, ids)
+    return [float(a / b) if b else None for a, b in zip(s, n)]
+
+
+def eddy(sla_cm):
+    if sla_cm is None:
+        return None
+    return "cyclonic" if sla_cm <= -EDDY_CM else "anticyclonic" if sla_cm >= EDDY_CM else "none"
 
 
 def km_xy(lon, lat):
@@ -173,7 +206,7 @@ def strength(zone):
     return zone["grad"] * zone["front_km"]
 
 
-def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINTS):
+def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MAX_POINTS):
     lat = sst.latitude.values
     lon = sst.longitude.values
     dlat = np.gradient(lat)[:, None] * KM_PER_DEG
@@ -189,9 +222,11 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINT
     chl_front = (chl_gradient(chl, sst) >= CHL_FRONT_MIN).values
     chl_front_km = ndimage.sum(np.sqrt(cell_km2) * chl_front, labels, ids)  # anywhere in the zone
     boxes = ndimage.find_objects(labels)
+    sla_cm = zone_mean(extra["sla_cm"].values, labels, ids)
+    eddy_edge = zone_mean(extra["eddy_edge"].values, labels, ids)
 
     zones = []
-    for label, area, s, c, g, fkm, cfkm in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km):
+    for label, area, s, c, g, fkm, cfkm, sla, edge in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
@@ -214,6 +249,9 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINT
             "grad": round(float(g), 3),
             "front_km": round(float(fkm), 1),
             "chl_front_km": round(float(cfkm), 1),
+            "sla_cm": None if sla is None else round(sla, 1),
+            "eddy": eddy(sla),
+            "eddy_edge": None if edge is None else round(edge, 2),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
@@ -243,11 +281,11 @@ def rank_zones(zones, score, max_points):
     return zones
 
 
-FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
 POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
-def write_tables(out, zones, sst_date, chl_date, chl_days):
+def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
     rows = [{k: z[k] for k in FIELDS} for z in zones]
     points = [pt for z in zones for pt in z["point_list"]]
     with open(out / "zones.csv", "w", newline="") as f:
@@ -281,6 +319,7 @@ def write_tables(out, zones, sst_date, chl_date, chl_days):
             "chl_date": chl_date,
             "chl_source": "weekly" if chl_days is None else "median",
             "chl_days": chl_days or [],
+            "extra_dates": extra_dates,
             "features": features,
         }, f)
 
@@ -348,15 +387,16 @@ def run(sst_date, chl_date, chl_days=None):
     out.mkdir(parents=True, exist_ok=True)
 
     sst, chl, depth = load(sst_date, chl_date, chl_days)
+    extra, extra_dates = load_extra(sst_date, sst)
     ocean = sst.notnull() & eez_mask(sst)
     grad = gradient(sst)
     grad_min, chl_min = threshold_grids(sst)
     pfz = (grad >= grad_min) & (chl >= chl_min) & ocean
     labels, ids = label_zones(pfz, ocean)
-    zones = describe_zones(sst, chl, depth, grad, pfz, labels, ids)
+    zones = describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra)
 
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
-    write_tables(out, zones, sst_date, chl_date, chl_days)
+    write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates)
     write_overlays(out, sst, chl)
     for name in REGIONS:
         plot_region(out, sst_date, name, sst, chl, labels, zones)

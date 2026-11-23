@@ -30,11 +30,12 @@ def sweep(days):
         sst, chl, depth = pfz.load(day, chl_date_for(day))
         ocean = sst.notnull() & pfz.eez_mask(sst)
         grad = pfz.gradient(sst)
+        extra = pfz.load_extra(day, sst)[0]
         segments = validate.incois_segments(f"validation/incois/{day}.geojson")
         for g, c in itertools.product(GRADS, CHLS):
             mask = (grad >= g) & (chl >= c) & ocean
             labels, ids = pfz.label_zones(mask, ocean)
-            zones = pfz.describe_zones(sst, chl, depth, grad, mask, labels, ids)
+            zones = pfz.describe_zones(sst, chl, depth, grad, mask, labels, ids, extra)
             for (score_name, score), cap in itertools.product(SCORES.items(), CAPS):
                 pfz.rank_zones(zones, score, {name: cap for name in REGIONS})
                 shown = [z for z in zones if z["points"] > 0]

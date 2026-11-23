@@ -56,6 +56,8 @@ if __name__ == "__main__":
         start, end = sys.argv[1], sys.argv[2]
     for sst_date, chl_date in date_pairs(start, end):
         fetch.fetch(sst_date)
+        for name in fetch.EXTRA:
+            fetch.fetch_extra(name, sst_date)
         chl_days = None
         if (date.fromisoformat(sst_date) - date.fromisoformat(chl_date)).days > STALE_DAYS:
             chl_days = fetch.fetch_daily_chl(sst_date)
