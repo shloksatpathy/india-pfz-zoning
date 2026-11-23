@@ -78,7 +78,7 @@ Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
 - `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth and advisory text such as `Veraval: SW, 45 km, depth 60 m`
-- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, depth_m, number of points, and the advisory of the point closest to its harbour)
+- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), depth_m, number of points, and the advisory of the point closest to its harbour)
 - `zones.geojson`: zone outlines as polygons (with holes) plus the advisory points (`kind: "point"`)
 - `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
 

@@ -26,6 +26,7 @@ OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
 POINT_TILE_KM = 30  # one advisory point per tile of this size
 MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
 MAX_HARBOUR_KM = 300  # zones farther than this from every harbour are dropped
+CHL_FRONT_MIN = 0.02  # log10(mg/m³) per km, ~90th percentile over ocean pixels in the 8 published weeks
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -65,12 +66,19 @@ def threshold_grids(sst):
     return sst.copy(data=grad_min), sst.copy(data=chl_min)
 
 
-def sst_gradient(sst):
-    y_km = sst.latitude.values * KM_PER_DEG
-    x_km = sst.longitude.values * KM_PER_DEG
-    gy, gx = np.gradient(sst.values, y_km, x_km)
-    gx = gx / np.cos(np.deg2rad(sst.latitude.values))[:, None]
-    return sst.copy(data=np.hypot(gx, gy))
+def gradient(da):
+    """Gradient magnitude per km."""
+    y_km = da.latitude.values * KM_PER_DEG
+    x_km = da.longitude.values * KM_PER_DEG
+    gy, gx = np.gradient(da.values, y_km, x_km)
+    gx = gx / np.cos(np.deg2rad(da.latitude.values))[:, None]
+    return da.copy(data=np.hypot(gx, gy))
+
+
+def chl_gradient(chl, sst):
+    """Gradient of log10 chlorophyll on a 0.04° grid (close to its 0.0375° source), back on the SST grid."""
+    log_chl = np.log10(chl).coarsen(latitude=2, longitude=2, boundary="trim").mean()
+    return gradient(log_chl).interp_like(sst, method="nearest")
 
 
 def eez_mask(sst):
@@ -178,10 +186,12 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINT
     mean_chl = ndimage.mean(chl.values, core, ids)
     mean_grad = ndimage.mean(grad.values, core, ids)
     front_km = ndimage.sum(np.sqrt(cell_km2), core, ids)  # front pixels × pixel width
+    chl_front = (chl_gradient(chl, sst) >= CHL_FRONT_MIN).values
+    chl_front_km = ndimage.sum(np.sqrt(cell_km2) * chl_front, labels, ids)  # anywhere in the zone
     boxes = ndimage.find_objects(labels)
 
     zones = []
-    for label, area, s, c, g, fkm in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km):
+    for label, area, s, c, g, fkm, cfkm in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
@@ -203,6 +213,7 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, max_points=MAX_POINT
             "chl": round(float(c), 3),
             "grad": round(float(g), 3),
             "front_km": round(float(fkm), 1),
+            "chl_front_km": round(float(cfkm), 1),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
@@ -232,7 +243,7 @@ def rank_zones(zones, score, max_points):
     return zones
 
 
-FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
 POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
@@ -338,7 +349,7 @@ def run(sst_date, chl_date, chl_days=None):
 
     sst, chl, depth = load(sst_date, chl_date, chl_days)
     ocean = sst.notnull() & eez_mask(sst)
-    grad = sst_gradient(sst)
+    grad = gradient(sst)
     grad_min, chl_min = threshold_grids(sst)
     pfz = (grad >= grad_min) & (chl >= chl_min) & ocean
     labels, ids = label_zones(pfz, ocean)

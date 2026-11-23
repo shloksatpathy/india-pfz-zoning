@@ -29,7 +29,7 @@ def sweep(days):
     for day in days:
         sst, chl, depth = pfz.load(day, chl_date_for(day))
         ocean = sst.notnull() & pfz.eez_mask(sst)
-        grad = pfz.sst_gradient(sst)
+        grad = pfz.gradient(sst)
         segments = validate.incois_segments(f"validation/incois/{day}.geojson")
         for g, c in itertools.product(GRADS, CHLS):
             mask = (grad >= g) & (chl >= c) & ocean
