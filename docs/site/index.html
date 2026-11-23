@@ -57,12 +57,13 @@
   </div>
   <label class="toggle"><input type="checkbox" id="showAll"> Show all zones (lower-ranked zones without advisory points)</label>
   <ul id="list"></ul>
-  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS near real time. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Distances are by sea from the harbour; bearings are compass directions from the harbour. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
+  <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS 7-day composite, or when that is more than 10 days older than SST, the median of the past 7 days of NOAA-20 and S-NPP VIIRS and Sentinel-3A/B OLCI daily images (near real time). Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Distances are by sea from the harbour; bearings are compass directions from the harbour. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
 </main>
 <script>
 const SST_RANGE = "SST 26 – 32 °C";
 const STALE_DAYS = 10;  // warn when chlorophyll is this much older than SST
 const CHL_RANGE = "Chlorophyll 0.03 – 10 mg/m³";
+const SENSORS = { n20: "NOAA-20", npp: "S-NPP", s3a: "Sentinel-3A", s3b: "Sentinel-3B" };
 
 const map = L.map("map");
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -172,8 +173,11 @@ function zoomToRegion() {
 async function loadDate() {
   const date = dateSelect.value;
   const entry = index.dates.find(d => d.date === date);
-  document.getElementById("dates").textContent =
-    `SST ${entry.sst_date} · Chlorophyll: 7-day composite dated ${entry.chl_date}`;
+  const days = entry.chl_days.map(d => d[1]).sort();
+  const sensors = [...new Set(entry.chl_days.map(d => SENSORS[d[0]]))].join(", ");
+  document.getElementById("dates").textContent = entry.chl_source === "weekly"
+    ? `SST ${entry.sst_date} · Chlorophyll: NOAA-20 7-day composite dated ${entry.chl_date}`
+    : `SST ${entry.sst_date} · Chlorophyll: median of ${days.length} daily images (${sensors}), ${days[0]} – ${entry.chl_date}`;
   const lag = (new Date(entry.sst_date) - new Date(entry.chl_date)) / 86400000;
   const stale = document.getElementById("stale");
   stale.hidden = lag <= STALE_DAYS;

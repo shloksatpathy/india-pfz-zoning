@@ -29,10 +29,14 @@ MAX_HARBOUR_KM = 300  # zones farther than this from every harbour are dropped
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
-def load(sst_date, chl_date):
+def load(sst_date, chl_date, chl_days=None):
+    """SST, chlorophyll and depth; chlorophyll is the weekly composite, or the daily median when chl_days is given."""
     sst = xr.open_dataset(f"data/sst_{sst_date}.nc").analysed_sst.squeeze("time").sortby("latitude")
-    chl = xr.open_dataset(f"data/chl_n20_{chl_date}.nc").chlor_a.squeeze(["time", "altitude"]).sortby("latitude")
-    chl = chl.interp_like(sst, method="nearest")
+    if chl_days is None:
+        chl = xr.open_dataset(f"data/chl_n20_{chl_date}.nc").chlor_a.squeeze(["time", "altitude"]).sortby("latitude")
+        chl = chl.interp_like(sst, method="nearest")
+    else:
+        chl = daily_chl(sst, chl_days)
     depth = -xr.open_dataset("data/etopo.nc").altitude.sortby("latitude")
     return sst, chl, depth
 
@@ -232,7 +236,7 @@ FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad"
 POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
 
 
-def write_tables(out, zones, sst_date, chl_date):
+def write_tables(out, zones, sst_date, chl_date, chl_days):
     rows = [{k: z[k] for k in FIELDS} for z in zones]
     points = [pt for z in zones for pt in z["point_list"]]
     with open(out / "zones.csv", "w", newline="") as f:
@@ -260,7 +264,14 @@ def write_tables(out, zones, sst_date, chl_date):
         for pt in points
     ]
     with open(out / "zones.geojson", "w") as f:
-        json.dump({"type": "FeatureCollection", "sst_date": sst_date, "chl_date": chl_date, "features": features}, f)
+        json.dump({
+            "type": "FeatureCollection",
+            "sst_date": sst_date,
+            "chl_date": chl_date,
+            "chl_source": "weekly" if chl_days is None else "median",
+            "chl_days": chl_days or [],
+            "features": features,
+        }, f)
 
 
 def plot_region(out, date, name, sst, chl, labels, zones):
@@ -321,11 +332,11 @@ def write_overlays(out, sst, chl):
     plt.imsave(out / "chl.png", log_chl, cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1])
 
 
-def run(sst_date, chl_date):
+def run(sst_date, chl_date, chl_days=None):
     out = Path("outputs") / sst_date
     out.mkdir(parents=True, exist_ok=True)
 
-    sst, chl, depth = load(sst_date, chl_date)
+    sst, chl, depth = load(sst_date, chl_date, chl_days)
     ocean = sst.notnull() & eez_mask(sst)
     grad = sst_gradient(sst)
     grad_min, chl_min = threshold_grids(sst)
@@ -334,12 +345,13 @@ def run(sst_date, chl_date):
     zones = describe_zones(sst, chl, depth, grad, pfz, labels, ids)
 
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
-    write_tables(out, zones, sst_date, chl_date)
+    write_tables(out, zones, sst_date, chl_date, chl_days)
     write_overlays(out, sst, chl)
     for name in REGIONS:
         plot_region(out, sst_date, name, sst, chl, labels, zones)
 
-    print(f"{len(zones)} zones written to {out} (chlorophyll {chl_date})")
+    source = "weekly" if chl_days is None else f"median of {len(chl_days)} daily files"
+    print(f"{len(zones)} zones written to {out} (chlorophyll {chl_date}, {source})")
     for name in REGIONS:
         count = sum(z["region"] == name for z in zones)
         print(f"  {name}: {count}")

@@ -134,7 +134,7 @@ How the new parameters are used (decided 2026-11-23): zones are still found from
 
 ### Milestones
 
-1. Chlorophyll source rule; stale week(s) rebuilt with the median.
+1. ~~Chlorophyll source rule; stale week(s) rebuilt with the median.~~ Done 2026-11-23. `run.py` uses the weekly composite when it is at most `STALE_DAYS` = 10 days older than SST, else `fetch_daily_chl` + `pfz.daily_chl`; `zones.geojson` and `index.json` carry `chl_source` and `chl_days`, and the page names the source and sensors. Of the 8 published weeks only 2026-11-20 switched (weekly 2026-11-09 → median of 17 daily images 2026-11-14 – 20, 90% ocean coverage): 84 → 87 zones, 235 → 212 points. INCOIS scores on the days matched to it, all regions, hit / precision: 2026-11-19 0.39 / 0.10 → 0.45 / 0.13, 2026-11-20 0.27 / 0.07 → 0.32 / 0.08 (Karnataka & Kerala 0.28 → 0.44 and 0.19 → 0.28 hit). The other 7 weeks are unchanged.
 2. Chlorophyll fronts as a zone attribute.
 3. Sea level anomaly and eddy labels.
 4. Wind, upwelling and the strong-wind note.

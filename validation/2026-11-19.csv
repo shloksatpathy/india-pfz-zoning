@@ -1,10 +1,10 @@
 region,incois_lines,incois_km,hit_rate,our_zones,our_points,precision
-Gujarat,11,414,0.62,18,64,0.17
+Gujarat,11,414,0.62,20,68,0.16
 Maharashtra & Goa,11,281,0.46,9,19,0.32
-Karnataka & Kerala,33,550,0.28,9,12,0.5
-Lakshadweep,5,95,0.0,0,0,
-Tamil Nadu & Puducherry,0,0,,7,34,0.0
-Andhra Pradesh,0,0,,23,55,0.0
-Odisha & West Bengal,0,0,,17,50,0.0
-Andaman & Nicobar,2,49,0.0,1,1,0.0
-All,62,1389,0.39,84,235,0.1
+Karnataka & Kerala,33,550,0.44,7,27,0.41
+Lakshadweep,5,95,0.0,1,1,0.0
+Tamil Nadu & Puducherry,0,0,,16,32,0.0
+Andhra Pradesh,0,0,,18,30,0.0
+Odisha & West Bengal,0,0,,14,33,0.0
+Andaman & Nicobar,2,49,0.0,2,2,0.0
+All,62,1389,0.45,87,212,0.13

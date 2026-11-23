@@ -64,6 +64,8 @@
    "date": "2026-10-06",
    "sst_date": "2026-10-06",
    "chl_date": "2026-10-06",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 85,
    "regions": {
     "Gujarat": 12,
@@ -80,6 +82,8 @@
    "date": "2026-10-13",
    "sst_date": "2026-10-13",
    "chl_date": "2026-10-13",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 86,
    "regions": {
     "Gujarat": 6,
@@ -96,6 +100,8 @@
    "date": "2026-10-20",
    "sst_date": "2026-10-20",
    "chl_date": "2026-10-20",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 60,
    "regions": {
     "Gujarat": 9,
@@ -112,6 +118,8 @@
    "date": "2026-10-27",
    "sst_date": "2026-10-27",
    "chl_date": "2026-10-27",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 41,
    "regions": {
     "Gujarat": 14,
@@ -128,6 +136,8 @@
    "date": "2026-11-03",
    "sst_date": "2026-11-03",
    "chl_date": "2026-11-03",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 65,
    "regions": {
     "Gujarat": 12,
@@ -144,6 +154,8 @@
    "date": "2026-11-10",
    "sst_date": "2026-11-10",
    "chl_date": "2026-11-09",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 56,
    "regions": {
     "Gujarat": 17,
@@ -160,6 +172,8 @@
    "date": "2026-11-17",
    "sst_date": "2026-11-17",
    "chl_date": "2026-11-09",
+   "chl_source": "weekly",
+   "chl_days": [],
    "zones": 52,
    "regions": {
     "Gujarat": 13,
@@ -175,17 +189,88 @@
   {
    "date": "2026-11-20",
    "sst_date": "2026-11-20",
-   "chl_date": "2026-11-09",
-   "zones": 84,
+   "chl_date": "2026-11-20",
+   "chl_source": "median",
+   "chl_days": [
+    [
+     "n20",
+     "2026-11-14"
+    ],
+    [
+     "n20",
+     "2026-11-15"
+    ],
+    [
+     "npp",
+     "2026-11-15"
+    ],
+    [
+     "s3a",
+     "2026-11-14"
+    ],
+    [
+     "s3a",
+     "2026-11-15"
+    ],
+    [
+     "s3a",
+     "2026-11-16"
+    ],
+    [
+     "s3a",
+     "2026-11-17"
+    ],
+    [
+     "s3a",
+     "2026-11-18"
+    ],
+    [
+     "s3a",
+     "2026-11-19"
+    ],
+    [
+     "s3a",
+     "2026-11-20"
+    ],
+    [
+     "s3b",
+     "2026-11-14"
+    ],
+    [
+     "s3b",
+     "2026-11-15"
+    ],
+    [
+     "s3b",
+     "2026-11-16"
+    ],
+    [
+     "s3b",
+     "2026-11-17"
+    ],
+    [
+     "s3b",
+     "2026-11-18"
+    ],
+    [
+     "s3b",
+     "2026-11-19"
+    ],
+    [
+     "s3b",
+     "2026-11-20"
+    ]
+   ],
+   "zones": 87,
    "regions": {
-    "Gujarat": 18,
+    "Gujarat": 20,
     "Maharashtra & Goa": 9,
-    "Karnataka & Kerala": 9,
-    "Lakshadweep": 0,
-    "Tamil Nadu & Puducherry": 7,
-    "Andhra Pradesh": 23,
-    "Odisha & West Bengal": 17,
-    "Andaman & Nicobar": 1
+    "Karnataka & Kerala": 7,
+    "Lakshadweep": 1,
+    "Tamil Nadu & Puducherry": 16,
+    "Andhra Pradesh": 18,
+    "Odisha & West Bengal": 14,
+    "Andaman & Nicobar": 2
    }
   }
  ]

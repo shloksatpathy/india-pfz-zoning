@@ -17,6 +17,7 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 |---|---|---|---|
 | SST | `jplMURSST41` (MUR SST v4.1) | 0.01° | Daily |
 | Chlorophyll-a | `noaacwN20VIIRSchlaWeekly` (NOAA-20 VIIRS, near real time) | ~0.0375° | 7-day composite, new date daily |
+| Chlorophyll-a, when the composite is > 10 days older than SST | `noaacwN20VIIRSchlaDaily`, `noaacwNPPVIIRSchlaDaily`, `noaacwS3AOLCIchlaDaily`, `noaacwS3BOLCIchlaDaily` | ~0.0375° | Daily; per-pixel median of the 7 days ending at the SST date |
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
@@ -63,7 +64,7 @@ india-pfz-zoning/
 uv run run.py last
 ```
 
-runs the newest SST day with the newest chlorophyll composite on or before it (chlorophyll is usually 4–10 days behind SST). Outputs go to `outputs/<SST date>/`, and `outputs/index.json` lists every date with its SST date, chlorophyll date and zone counts per region.
+runs the newest SST day with the newest chlorophyll composite on or before it (chlorophyll is usually 4–10 days behind SST). When the composite is more than 10 days older than SST (`STALE_DAYS` in `run.py`), it uses the per-pixel median of every daily NOAA-20, S-NPP, Sentinel-3A and Sentinel-3B image in the 7 days ending at the SST date instead. Outputs go to `outputs/<SST date>/`, and `outputs/index.json` lists every date with its SST date, chlorophyll date and source (`weekly` or `median`, with the daily files used) and zone counts per region.
 
 For a range, every 7th SST day counting back from the end date:
 
@@ -71,7 +72,7 @@ For a range, every 7th SST day counting back from the end date:
 uv run run.py 2026-09-29 2026-11-17
 ```
 
-Single steps take both dates: `uv run fetch.py 2026-11-17 2026-11-09`, then `uv run pfz.py 2026-11-17 2026-11-09`.
+Single steps (weekly composite) take both dates: `uv run fetch.py 2026-11-17 2026-11-09`, then `uv run pfz.py 2026-11-17 2026-11-09`.
 
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
@@ -118,7 +119,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. The daily job also scores each archived day against the published zones (`validation/<date>.csv`; `uv run validate.py --summary` averages them per region). Zones are ranked within their region by front strength, and `MAX_POINTS` in `regions.py` can cap advisory points per region (no cap yet); the map lists zones by rank. Thresholds are set per region in `regions.py`; `sweep.py` scores threshold combinations against the archive (preliminary results in PLAN.md). Next: choose per-region values once ~3 weeks are archived.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. The daily job also scores each archived day against the published zones (`validation/<date>.csv`; `uv run validate.py --summary` averages them per region). Zones are ranked within their region by front strength, and `MAX_POINTS` in `regions.py` can cap advisory points per region (no cap yet); the map lists zones by rank. Thresholds are set per region in `regions.py`; `sweep.py` scores threshold combinations against the archive (preliminary results in PLAN.md). Phase 4 added the multi-sensor chlorophyll median, missing harbours and sea-route distances. Phase 5 (in progress): the chlorophyll source rule is in; next are chlorophyll fronts, sea level / eddies, wind and upwelling, currents and salinity, then per-region values once ~3 weeks of INCOIS lines are archived.
 
 ## References
 

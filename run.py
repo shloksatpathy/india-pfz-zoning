@@ -11,6 +11,7 @@ SST_TIMES = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.csv?tim
 CHL_TIMES = "https://coastwatch.noaa.gov/erddap/griddap/noaacwN20VIIRSchlaWeekly.csv?time[({start}):1:(last)]"
 STEP_DAYS = 7
 CHL_LOOKBACK_DAYS = 60  # chlorophyll can trail SST by more than a week
+STALE_DAYS = 10  # weekly chlorophyll older than SST by more: use the multi-sensor daily median (web/index.html warns at the same lag)
 
 
 def date_pairs(start, end):
@@ -36,6 +37,8 @@ def write_index(root):
             "date": path.parent.name,
             "sst_date": geojson["sst_date"],
             "chl_date": geojson["chl_date"],
+            "chl_source": geojson["chl_source"],
+            "chl_days": geojson["chl_days"],
             "zones": len(zones),
             "regions": counts,
         })
@@ -52,6 +55,12 @@ if __name__ == "__main__":
     else:
         start, end = sys.argv[1], sys.argv[2]
     for sst_date, chl_date in date_pairs(start, end):
-        fetch.fetch(sst_date, chl_date)
-        pfz.run(sst_date, chl_date)
+        fetch.fetch(sst_date)
+        chl_days = None
+        if (date.fromisoformat(sst_date) - date.fromisoformat(chl_date)).days > STALE_DAYS:
+            chl_days = fetch.fetch_daily_chl(sst_date)
+            chl_date = max(d for _, d in chl_days)
+        else:
+            fetch.fetch_chl(chl_date)
+        pfz.run(sst_date, chl_date, chl_days)
     write_index("outputs")
