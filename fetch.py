@@ -9,6 +9,7 @@ SST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.nc"
 ETOPO_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.nc"
 CHL_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwN20VIIRSchlaWeekly.nc"
 COASTWATCH = "https://coastwatch.noaa.gov/erddap/griddap/"
+PFEG = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/"
 # daily chlorophyll, same variable and 0.0375° grid: sensor -> dataset
 CHL_DAILY = {
     "n20": "noaacwN20VIIRSchlaDaily",  # NOAA-20 VIIRS
@@ -20,6 +21,7 @@ CHL_DAYS = 7  # daily composite window, ending at the SST date
 # other ocean parameters, daily: name -> (dataset URL, variables, index for the extra altitude axis or "")
 EXTRA = {
     "sla": (f"{COASTWATCH}noaacwBLENDEDsshDaily", ["sla"], ""),
+    "wind": (f"{PFEG}erdQCwindproducts3day", ["wind_speed", "ekman_upwelling"], "[(10.0)]"),  # Metop-C ASCAT, 3-day
 }
 EXTRA_LOOKBACK_DAYS = 10
 

@@ -68,7 +68,18 @@ def load_extra(sst_date, sst):
         "eddy_edge": edge.interp_like(sst),
     }
     dates = {"sla": str(ds.time.values[0])[:10]}
+
+    ds = xr.open_dataset(f"data/wind_{sst_date}.nc").squeeze(["time", "altitude"]).sortby("latitude")
+    grids["wind_ms"] = fill_nearest(ds.wind_speed).interp_like(sst)  # coastal points get the nearest ocean cell's wind
+    grids["upwelling_m_day"] = (ds.ekman_upwelling * 86400).interp_like(sst)
+    dates["wind"] = str(ds.time.values)[:10]
     return grids, dates
+
+
+def fill_nearest(da):
+    """Missing cells take the value of the nearest cell with data."""
+    idx = ndimage.distance_transform_edt(np.isnan(da.values), return_distances=False, return_indices=True)
+    return da.copy(data=da.values[tuple(idx)])
 
 
 def zone_mean(values, labels, ids):
@@ -77,6 +88,15 @@ def zone_mean(values, labels, ids):
     n = ndimage.sum(ok, labels, ids)
     s = ndimage.sum(np.where(ok, values, 0), labels, ids)
     return [float(a / b) if b else None for a, b in zip(s, n)]
+
+
+def point_value(grid, lat, lon):
+    v = float(grid.sel(latitude=lat, longitude=lon, method="nearest"))
+    return None if np.isnan(v) else v
+
+
+def rounded(v, digits):
+    return None if v is None else round(v, digits)
 
 
 def eddy(sla_cm):
@@ -224,14 +244,19 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
     boxes = ndimage.find_objects(labels)
     sla_cm = zone_mean(extra["sla_cm"].values, labels, ids)
     eddy_edge = zone_mean(extra["eddy_edge"].values, labels, ids)
+    wind = zone_mean(extra["wind_ms"].values, labels, ids)
+    upwelling = zone_mean(extra["upwelling_m_day"].values, labels, ids)
 
     zones = []
-    for label, area, s, c, g, fkm, cfkm, sla, edge in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge):
+    for label, area, s, c, g, fkm, cfkm, sla, edge, w, up in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge, wind, upwelling):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
         zlat, zlon = nearest_pixel(plat, plon, plat.mean(), plon.mean())
-        points = [advisory(plat_, plon_, depth) for plat_, plon_ in tile_points(plat, plon)]
+        points = [
+            {**advisory(plat_, plon_, depth), "wind_ms": rounded(point_value(extra["wind_ms"], plat_, plon_), 1)}
+            for plat_, plon_ in tile_points(plat, plon)
+        ]
         closest = min(points, key=lambda pt: pt["distance_km"])
         if closest["distance_km"] > MAX_HARBOUR_KM:
             continue
@@ -249,9 +274,11 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
             "grad": round(float(g), 3),
             "front_km": round(float(fkm), 1),
             "chl_front_km": round(float(cfkm), 1),
-            "sla_cm": None if sla is None else round(sla, 1),
+            "sla_cm": rounded(sla, 1),
             "eddy": eddy(sla),
-            "eddy_edge": None if edge is None else round(edge, 2),
+            "eddy_edge": rounded(edge, 2),
+            "wind_ms": rounded(w, 1),
+            "upwelling_m_day": rounded(up, 2),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
@@ -281,8 +308,8 @@ def rank_zones(zones, score, max_points):
     return zones
 
 
-FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
-POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
