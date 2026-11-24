@@ -53,6 +53,14 @@
   #warnings li { padding: 4px 0; min-height: 0; cursor: default; border: none; color: #b02a37; }
   @media (prefers-color-scheme: dark) { #warnings li { color: #ff8a8a; } }
   .ramp { display: inline-block; width: 120px; height: 12px; vertical-align: -1px; border-radius: 3px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media print {
+    header select, header .time input, #layers, .legend, .bar:has(#downloads), #listView, #zonePoints, .actions, button.back, .leaflet-control-container, .leaflet-popup { display: none !important; }
+    body { display: block; height: auto; }
+    .layout { display: block; }
+    #map { height: 120mm; width: 100%; }
+    main { width: 100%; overflow: visible; border: none; }
+  }
 </style>
 </head>
 <body>
@@ -97,6 +105,10 @@
       <p id="routeText"></p>
       <label class="toggle">Boat speed <input type="number" id="speed" value="8" min="1" max="30" step="1" aria-label="Boat speed in knots"> knots</label>
       <ul id="warnings"></ul>
+      <div class="actions">
+        <button class="back" id="copyLink">Copy link</button>
+        <button class="back" id="print">Print</button>
+      </div>
     </div>
     <p class="detail" id="zoneDetail"></p>
     <ul id="zonePoints"></ul>
@@ -274,6 +286,7 @@ function showRoute() {
     `<b>${q.advisory}</b><br>Route from ${q.harbour}: ${q.route_km} km (${Math.round(q.route_km / KM_PER_NM)} nautical miles), ` +
     `first heading ${heading(q.route[0], q.route[1] || [q.lat, q.lon])}, about ${hours < 1 ? Math.round(hours * 60) + " min" : hours.toFixed(1) + " h"} at ${knots} knots. ` +
     `Wind ${num(q.wind_ms, "m/s")} · ${currentText(q)}.`;
+  document.getElementById("copyLink").textContent = "Copy link";
   const ul = document.getElementById("warnings");
   ul.innerHTML = "";
   for (const w of warnings(q)) {
@@ -282,6 +295,13 @@ function showRoute() {
     ul.appendChild(li);
   }
   if (!ul.children.length) ul.innerHTML = "<li>No warnings.</li>";
+}
+
+function setHash() {
+  const parts = [`date=${index.dates[dateSlider.value].date}`];
+  if (selected) parts.push(`zone=${selected.properties.id}`);
+  if (route) parts.push(`point=${route.properties.point}`);
+  history.replaceState(null, "", "#" + parts.join("&"));
 }
 
 function selectPoint(pt) {
@@ -298,6 +318,7 @@ function selectPoint(pt) {
   pointLayer.getLayers().find(l => l.feature === pt).openPopup();
   document.getElementById("pointView").hidden = false;
   showRoute();
+  setHash();
   toMap();
 }
 
@@ -320,6 +341,7 @@ function selectZone(zone) {
   for (const pt of pointsOf(zone)) ul.appendChild(pointItem(pt));
   document.getElementById("listView").hidden = true;
   document.getElementById("zoneView").hidden = false;
+  setHash();
   toMap();
 }
 
@@ -329,6 +351,7 @@ function closeZone() {
   zoneLayer.setStyle(zoneLayer.options.style);
   document.getElementById("listView").hidden = false;
   document.getElementById("zoneView").hidden = true;
+  setHash();
   showList();
 }
 
@@ -475,12 +498,32 @@ async function start() {
   harbourSelect.onchange = zoomToHarbour;
   document.getElementById("back").onclick = closeZone;
   document.getElementById("speed").oninput = () => { if (route) showRoute(); };
+  document.getElementById("print").onclick = () => window.print();
+  // the map is narrower on paper: refit it to the route
+  window.matchMedia("print").addEventListener("change", e => {
+    map.invalidateSize();
+    if (route) map.fitBounds(routeLine.getBounds(), { maxZoom: 10, padding: [30, 30], animate: false });
+  });
+  document.getElementById("copyLink").onclick = async e => {
+    await navigator.clipboard.writeText(location.href);
+    e.target.textContent = "Link copied";
+  };
   showAll.onchange = () => {
     zoneLayer.clearLayers().addData(features);
     closeZone();
   };
   map.fitBounds(index.bounds);
+  // a shared link: #date=<date>&zone=<id>&point=<n>
+  const link = Object.fromEntries(new URLSearchParams(location.hash.slice(1)));
+  const shared = index.dates.findIndex(d => d.date === link.date);
+  if (shared >= 0) {
+    dateSlider.value = shared;
+    showDate();
+  }
   await loadDate();
+  const zone = features.find(f => f.properties.kind !== "point" && String(f.properties.id) === link.zone);
+  const point = features.find(f => f.properties.kind === "point" && String(f.properties.zone_id) === link.zone && String(f.properties.point) === link.point);
+  if (point) selectPoint(point); else if (zone) selectZone(zone);
 }
 
 start();
