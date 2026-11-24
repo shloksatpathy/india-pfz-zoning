@@ -17,7 +17,15 @@
   header h1 { font-size: 18px; margin: 0 auto 0 0; }
   select { font-size: 16px; min-height: 44px; padding: 0 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
   #map { height: 55vh; }
-  main { padding: 8px 12px 24px; max-width: 900px; margin: 0 auto; }
+  main { padding: 8px 12px 24px; }
+  @media (min-width: 900px) {
+    body { height: 100vh; display: flex; flex-direction: column; }
+    .layout { display: flex; flex: 1; min-height: 0; }
+    #map { flex: 1; height: auto; }
+    main { width: 420px; overflow-y: auto; border-left: 1px solid var(--line); }
+  }
+  button.back { font-size: 16px; min-height: 44px; padding: 0 12px; margin: 4px 0; background: var(--bg); color: var(--accent); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+  .detail { margin: 8px 0; }
   .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 4px 0 8px; color: var(--muted); }
   .bar a { color: var(--accent); min-height: 44px; display: inline-flex; align-items: center; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 14px; color: var(--muted); }
@@ -42,7 +50,9 @@
   <h1>Potential Fishing Zones</h1>
   <select id="date" aria-label="Date"></select>
   <select id="region" aria-label="Region"><option value="">All India</option></select>
+  <select id="harbour" aria-label="Harbour"><option value="">Any harbour</option></select>
 </header>
+<div class="layout">
 <div id="map"></div>
 <main>
   <p class="bar" id="dates"></p>
@@ -57,10 +67,18 @@
     </div>
     <div id="downloads"></div>
   </div>
-  <label class="toggle"><input type="checkbox" id="showAll"> Show all zones (lower-ranked zones without advisory points)</label>
-  <ul id="list"></ul>
+  <div id="listView">
+    <label class="toggle"><input type="checkbox" id="showAll"> Show all zones (lower-ranked zones without advisory points)</label>
+    <ul id="list"></ul>
+  </div>
+  <div id="zoneView" hidden>
+    <button class="back" id="back">← All zones</button>
+    <p class="detail" id="zoneDetail"></p>
+    <ul id="zonePoints"></ul>
+  </div>
   <p class="bar"><small>SST: NASA JPL MUR via NOAA ERDDAP. Chlorophyll: NOAA-20 VIIRS 7-day composite, or when that is more than 10 days older than SST, the median of the past 7 days of NOAA-20 and S-NPP VIIRS and Sentinel-3A/B OLCI daily images (near real time). Sea level and currents: NOAA multi-mission altimetry. Wind and upwelling: Metop-C ASCAT. Salinity: NASA SMAP, 3-day mean. Harbours: Dept. of Fisheries, coordinates © OpenStreetMap. EEZ: Marine Regions. Distances are by sea from the harbour; bearings are compass directions from the harbour. Not an official advisory: check INCOIS advisories and local fishing ban periods.</small></p>
 </main>
+</div>
 <script>
 const SST_RANGE = "SST 26 – 32 °C";
 const STALE_DAYS = 10;  // warn when chlorophyll is this much older than SST
@@ -76,6 +94,7 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const dateSelect = document.getElementById("date");
 const regionSelect = document.getElementById("region");
+const harbourSelect = document.getElementById("harbour");
 const list = document.getElementById("list");
 const showAll = document.getElementById("showAll");
 const POINT_ZOOM = 7;  // advisory points show from this zoom in
@@ -85,11 +104,15 @@ function isShownZone(f) {
 
 const zoneLayer = L.geoJSON(null, {
   filter: isShownZone,
-  style: f => f.properties.points > 0
-    ? { color: "#111", weight: 1, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 }
-    : { color: "#555", weight: 1, dashArray: "4 4", fillOpacity: 0 },
-  onEachFeature: (f, layer) => layer.bindPopup(popup(f.properties)),
+  style: f => {
+    const weight = f === selected ? 4 : 1;
+    return f.properties.points > 0
+      ? { color: "#111", weight, fillColor: chlColor(f.properties.chl), fillOpacity: 0.7 }
+      : { color: "#555", weight, dashArray: "4 4", fillOpacity: 0 };
+  },
+  onEachFeature: (f, layer) => layer.on("click", () => selectZone(f)),
 }).addTo(map);
+const harbourMarker = L.marker([0, 0]);
 const pointLayer = L.geoJSON(null, {
   filter: f => f.properties.kind === "point",
   pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: 1 }),
@@ -110,6 +133,7 @@ L.control.layers(null, {
 
 let index;
 let features = [];
+let selected = null;  // selected zone feature
 
 function chlColor(chl) {
   return chl < 0.5 ? "#3b528b" : chl < 1 ? "#21918c" : chl < 3 ? "#5ec962" : "#fde725";
@@ -138,7 +162,7 @@ function windNote(w) {
   return w !== null && w >= STRONG_WIND ? `<br><span class="wind">Strong wind: check the INCOIS ocean state forecast before going out.</span>` : "";
 }
 
-function popup(p) {
+function zoneText(p) {
   return `<b>Zone ${p.id}, ${p.region}</b><br>Rank ${p.rank} in region · ${p.points} points · nearest: ${p.advisory}<br>` +
     `Area ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³<br>` +
     `Chlorophyll fronts ${Math.round(p.chl_front_km)} km · ${eddyText(p)}<br>` +
@@ -150,55 +174,123 @@ function pointPopup(p) {
     `${p.lat.toFixed(2)}°N ${p.lon.toFixed(2)}°E<br>Wind ${num(p.wind_ms, "m/s")} · ${currentText(p)}` + windNote(p.wind_ms);
 }
 
-function focus(f) {
-  const layers = [...zoneLayer.getLayers(), ...pointLayer.getLayers()];
-  const layer = layers.find(l => l.feature === f);
-  if (layer.getBounds) {
-    map.fitBounds(layer.getBounds(), { maxZoom: 9 });
-  } else {
-    map.setView(layer.getLatLng(), 9);
+function pointsOf(zone) {
+  return features.filter(f => f.properties.kind === "point" && f.properties.zone_id === zone.properties.id)
+    .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
+}
+
+function pointItem(pt) {
+  const q = pt.properties;
+  const item = document.createElement("li");
+  item.className = "point";
+  item.innerHTML = `<b>${q.advisory}</b><small> · wind ${num(q.wind_ms, "m/s")} · ${currentText(q).toLowerCase()}</small>` +
+    (q.wind_ms !== null && q.wind_ms >= STRONG_WIND ? ` <span class="wind">strong wind</span>` : "");
+  item.onclick = () => focusPoint(pt);
+  return item;
+}
+
+function toMap() {
+  if (window.innerWidth < 900) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function focusPoint(pt) {
+  if (selected === null || pt.properties.zone_id !== selected.properties.id) {
+    selectZone(features.find(f => f.properties.kind !== "point" && f.properties.id === pt.properties.zone_id));
   }
-  map.once("moveend", () => layer.openPopup());
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  const layer = pointLayer.getLayers().find(l => l.feature === pt);
+  map.setView(layer.getLatLng(), 9);
+  pointLayer.addTo(map);
+  layer.openPopup();
+  toMap();
+}
+
+function selectZone(zone) {
+  selected = zone;
+  zoneLayer.setStyle(zoneLayer.options.style);
+  const layer = zoneLayer.getLayers().find(l => l.feature === zone);
+  map.fitBounds(layer.getBounds(), { maxZoom: 9 });
+  document.getElementById("zoneDetail").innerHTML = zoneText(zone.properties);
+  const ul = document.getElementById("zonePoints");
+  ul.innerHTML = "";
+  for (const pt of pointsOf(zone)) ul.appendChild(pointItem(pt));
+  document.getElementById("listView").hidden = true;
+  document.getElementById("zoneView").hidden = false;
+  toMap();
+}
+
+function closeZone() {
+  selected = null;
+  zoneLayer.setStyle(zoneLayer.options.style);
+  document.getElementById("listView").hidden = false;
+  document.getElementById("zoneView").hidden = true;
+  showList();
+}
+
+// Distance from the selected harbour to the zone: its nearest point from that harbour,
+// or the zone itself when the harbour is the zone's nearest; null when neither.
+function harbourDistance(zone, harbour) {
+  const d = pointsOf(zone).filter(f => f.properties.harbour === harbour).map(f => f.properties.distance_km);
+  if (zone.properties.harbour === harbour) d.push(zone.properties.distance_km);
+  return d.length ? Math.min(...d) : null;
+}
+
+function shownZones() {
+  const region = regionSelect.value;
+  const harbour = harbourSelect.value;
+  const order = Object.keys(index.regions);
+  const zones = features.filter(f => isShownZone(f) && (!region || f.properties.region === region));
+  if (harbour) {
+    return zones.filter(f => harbourDistance(f, harbour) !== null)
+      .sort((a, b) => harbourDistance(a, harbour) - harbourDistance(b, harbour));
+  }
+  return zones.sort((a, b) => order.indexOf(a.properties.region) - order.indexOf(b.properties.region) || a.properties.rank - b.properties.rank);
 }
 
 function showList() {
-  const region = regionSelect.value;
-  const order = Object.keys(index.regions);
-  const zones = features.filter(f => isShownZone(f) && (!region || f.properties.region === region))
-    .sort((a, b) => order.indexOf(a.properties.region) - order.indexOf(b.properties.region) || a.properties.rank - b.properties.rank);
+  const harbour = harbourSelect.value;
+  const zones = shownZones();
   list.innerHTML = "";
   if (zones.length === 0) {
-    list.innerHTML = `<li class="empty">No zones for this date and region.</li>`;
+    list.innerHTML = `<li class="empty">No zones for this date and ${harbour ? "harbour" : "region"}.</li>`;
     return;
   }
   for (const zone of zones) {
     const p = zone.properties;
     const li = document.createElement("li");
     li.className = "zone";
-    li.innerHTML = `<small>#${p.rank} ${p.region} · Zone ${p.id} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³` +
+    li.innerHTML = `<small>${harbour ? `${harbourDistance(zone, harbour)} km from ${harbour} · ` : ""}#${p.rank} ${p.region} · Zone ${p.id} · ${Math.round(p.area_km2)} km² · SST ${p.sst} °C · Chl ${p.chl} mg/m³` +
       (p.eddy === "cyclonic" || p.eddy === "anticyclonic" ? ` · ${p.eddy} eddy` : "") +
       (p.points > 0 ? "" : " · no advisory points") + `</small>`;
-    li.onclick = () => focus(zone);
+    li.onclick = () => selectZone(zone);
     list.appendChild(li);
-    const points = features.filter(f => f.properties.kind === "point" && f.properties.zone_id === p.id)
-      .sort((a, b) => a.properties.distance_km - b.properties.distance_km);
-    for (const pt of points) {
-      const item = document.createElement("li");
-      item.className = "point";
-      const q = pt.properties;
-      item.innerHTML = `<b>${q.advisory}</b><small> · wind ${num(q.wind_ms, "m/s")} · ${currentText(q).toLowerCase()}</small>` +
-        (q.wind_ms !== null && q.wind_ms >= STRONG_WIND ? ` <span class="wind">strong wind</span>` : "");
-      item.onclick = () => focus(pt);
-      list.appendChild(item);
+    for (const pt of pointsOf(zone)) {
+      if (!harbour || pt.properties.harbour === harbour) list.appendChild(pointItem(pt));
     }
   }
 }
 
 function zoomToRegion() {
+  harbourSelect.value = "";
+  harbourMarker.remove();
   const box = index.regions[regionSelect.value];
   map.fitBounds(box ? [[box[0], box[2]], [box[1], box[3]]] : index.bounds);
-  showList();
+  closeZone();
+}
+
+function zoomToHarbour() {
+  const name = harbourSelect.value;
+  if (!name) {
+    zoomToRegion();
+    return;
+  }
+  const [lat, lon, region] = index.harbours[name];
+  regionSelect.value = region;
+  harbourMarker.setLatLng([lat, lon]).bindTooltip(name).addTo(map);
+  closeZone();
+  const zones = shownZones();
+  const bounds = L.latLngBounds([[lat, lon]]);
+  for (const zone of zones) bounds.extend(zoneLayer.getLayers().find(l => l.feature === zone).getBounds());
+  map.fitBounds(bounds, { maxZoom: 9 });
 }
 
 async function loadDate() {
@@ -215,13 +307,14 @@ async function loadDate() {
   stale.textContent = `Chlorophyll is ${lag} days older than SST: zones may not match current conditions.`;
   const geojson = await (await fetch(`outputs/${date}/zones.geojson`)).json();
   features = geojson.features;
+  selected = null;
   zoneLayer.clearLayers().addData(features);
   pointLayer.clearLayers().addData(geojson);
   sstLayer.setUrl(`outputs/${date}/sst.png`).setBounds(index.bounds);
   chlLayer.setUrl(`outputs/${date}/chl.png`).setBounds(index.bounds);
   document.getElementById("downloads").innerHTML =
     `Download: <a href="outputs/${date}/zones.csv" download>Zones CSV</a> · <a href="outputs/${date}/points.csv" download>Points CSV</a> · <a href="outputs/${date}/zones.geojson" download>GeoJSON</a>`;
-  showList();
+  closeZone();
 }
 
 async function start() {
@@ -231,12 +324,20 @@ async function start() {
   }
   for (const name of Object.keys(index.regions)) {
     regionSelect.add(new Option(name, name));
+    const group = document.createElement("optgroup");
+    group.label = name;
+    for (const [harbour, h] of Object.entries(index.harbours).sort()) {
+      if (h[2] === name) group.appendChild(new Option(harbour, harbour));
+    }
+    harbourSelect.appendChild(group);
   }
   dateSelect.onchange = loadDate;
   regionSelect.onchange = zoomToRegion;
+  harbourSelect.onchange = zoomToHarbour;
+  document.getElementById("back").onclick = closeZone;
   showAll.onchange = () => {
     zoneLayer.clearLayers().addData(features);
-    showList();
+    closeZone();
   };
   map.fitBounds(index.bounds);
   map.on("overlayadd", async e => {

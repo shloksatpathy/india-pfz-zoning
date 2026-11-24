@@ -5,6 +5,7 @@ from pathlib import Path
 
 import fetch
 import pfz
+from harbours import HARBOURS
 from regions import BBOX, REGIONS
 
 SST_TIMES = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.csv?time[(last)]"
@@ -52,7 +53,7 @@ def write_index(root):
             "regions": counts,
         })
     lat_min, lat_max, lon_min, lon_max = BBOX
-    index = {"bounds": [[lat_min, lon_min], [lat_max, lon_max]], "regions": REGIONS, "dates": entries}
+    index = {"bounds": [[lat_min, lon_min], [lat_max, lon_max]], "regions": REGIONS, "harbours": HARBOURS, "dates": entries}
     with open(Path(root) / "index.json", "w") as f:
         json.dump(index, f, indent=1)
     print(f"index: {len(entries)} dates")

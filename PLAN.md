@@ -198,7 +198,7 @@ Milestones:
 - Stays in `web/index.html` with Leaflet; no build step.
 
 Milestones:
-1. Region / harbour selection and side panel.
+1. ~~Region / harbour selection and side panel.~~ Done 2026-11-24. `index.json` carries `harbours` (name → lat, lon, region). Header: date, region and a harbour select grouped by region; choosing a harbour sets its region, puts a marker on it, and lists only zones with points from that harbour, nearest first, with only that harbour's points. Clicking a zone on the map or in the list outlines it, fits the map and shows its values and points in the panel ("← All zones" goes back); a point opens its popup. Wide screens (≥ 900 px): map left, 420 px panel right, full height; phones keep map above, list below. Regions are chosen in the select only (their boxes overlap, so they are not drawn as clickable areas).
 2. Layer toggles and time slider.
 3. `traffic_live.py`, its workflow and the vessel layer (only if milestone 6.1 finds usable live coverage; otherwise the weekly grid stays the only traffic).
 
