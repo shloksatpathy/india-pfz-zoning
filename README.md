@@ -25,6 +25,16 @@ Fish gather where cold, nutrient-rich water meets warmer water (thermal fronts) 
 
 Servers: https://coastwatch.pfeg.noaa.gov/erddap/ (SST) and https://coastwatch.noaa.gov/erddap/ (chlorophyll), no login required
 
+Ship traffic comes from the [Global Fishing Watch](https://globalfishingwatch.org/our-apis/) 4Wings API (free API token, non-commercial use only):
+
+| Variable | GFW dataset | Resolution | Cadence |
+|---|---|---|---|
+| Fishing vessel presence | `public-global-presence:latest`, `vessel_type in ('fishing')` | 0.1° | Vessel-hours over the 7 days ending on the newest GFW day on or before the SST date (~4 days behind) |
+| Merchant ship presence | `public-global-presence:latest`, `vessel_type in ('cargo','passenger')` | 0.1° | Same week |
+| Apparent fishing effort | `public-global-fishing-effort:latest` | 0.1° | Same week |
+
+AIS shows only vessels that carry a transponder. Most small Indian fishing boats do not, so fishing traffic is almost all larger trawlers on the west coast (Karnataka & Kerala, Maharashtra & Goa); on the east coast it is close to zero. Merchant traffic covers every region and marks shipping lanes reliably. A live feed from AISStream.io was tested and dropped: it sees about one vessel per 10 minutes off India.
+
 Depth at each zone centroid comes from ETOPO1 (`etopo180` on the same SST server).
 
 Harbour names come from the Department of Fisheries *Handbook on Fisheries Statistics 2020* (Tables 13.2 and 13.3: major harbours and commissioned fishing harbours; Lakshadweep landing centres). Coordinates come from OpenStreetMap via Nominatim (© OpenStreetMap contributors, ODbL). Dholai, Pazhayar and Petuaghat, which OpenStreetMap does not have, use INCOIS landing-centre coordinates (WFS layer `PFZ_LandingCentres:LandingCenters_29Apr2024`). Agro and Roychowk are left out because they could not be located reliably. Distances follow the sea around land (`sea.py`: shortest path over a 0.04° ocean grid from MUR's land mask, stored in `sea_mask.npz`), and the nearest harbour is the nearest by sea; the bearing is the compass direction from the harbour to the point.
@@ -64,6 +74,15 @@ india-pfz-zoning/
 
 ## Usage
 
+The traffic download needs a Global Fishing Watch API token in `GFW_TOKEN`. Locally, put it in `.env` (ignored by git, never commit it):
+
+```
+GFW_TOKEN=<your token>
+AISSTREAM_KEY=<your key>   # only for trying AISStream; the pipeline does not use it
+```
+
+and load it before running: `set -a; . ./.env; set +a`. For the weekly GitHub Actions job, add the same token as the repository secret `GFW_TOKEN` (Settings → Secrets and variables → Actions); `weekly.yml` passes it to the pipeline.
+
 ```
 uv run run.py last
 ```
@@ -81,10 +100,13 @@ Single steps (weekly composite) take both dates: `uv run fetch.py 2026-11-17 202
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms`, current `current_kn` flowing to `current_to`, and advisory text such as `Veraval: SW, 45 km, depth 60 m`
-- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), local sea level anomaly `sla_cm` with its `eddy` label (cyclonic ≤ −5 cm, anticyclonic ≥ +5 cm) the share of the zone on an eddy edge `eddy_edge`, mean wind `wind_ms` and Ekman upwelling `upwelling_m_day`, mean salinity `sss` and the share on a salinity front `sss_front`, depth_m, number of points, and the advisory of the point closest to its harbour)
+- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms`, current `current_kn` flowing to `current_to`, merchant ship-hours last week in the point's 0.1° cell `merchant_hours` and `in_lane` (≥ 6 h, a shipping lane), and advisory text such as `Veraval: SW, 45 km, depth 60 m`
+- `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), local sea level anomaly `sla_cm` with its `eddy` label (cyclonic ≤ −5 cm, anticyclonic ≥ +5 cm) the share of the zone on an eddy edge `eddy_edge`, mean wind `wind_ms` and Ekman upwelling `upwelling_m_day`, mean salinity `sss` and the share on a salinity front `sss_front`, AIS vessel-hours in the zone last week `fishing_hours`, `merchant_hours` and fishing effort `effort_hours`, depth_m, number of points, and the advisory of the point closest to its harbour)
 - `zones.geojson`: zone outlines as polygons (with holes) plus the advisory points (`kind: "point"`)
-- `sst.png`, `chl.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box
+- `sst.png`, `chl.png`, `eddy.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box; `eddy.png` is the local sea level anomaly
+- `fishing.png`, `merchant.png`: AIS traffic overlays on the 0.1° cells (log scale; `merchant.png` shows only shipping-lane cells)
+
+`validation/effort.csv` compares each week's zones with AIS fishing effort: per region, the share of effort inside zones with advisory points against their share of the sea within 300 km of the region's harbours (ratio above 1 = effort concentrates in our zones).
 
 ## Web map
 
@@ -94,6 +116,10 @@ Outputs in `outputs/<date>/`:
 uv run site.py
 python -m http.server -d docs/site
 ```
+
+The page has a week slider, region and harbour selection (a harbour lists only its zones, nearest first), a side panel for the selected zone, and layer switches for zones, advisory points, SST, chlorophyll, eddies, fishing vessels and shipping lanes. Points in a shipping lane carry a warning.
+
+![Shipping lanes and zones, 2026-11-20](docs/images/lanes_2026-11-20.png)
 
 A weekly GitHub Actions workflow processes the newest SST day, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages. Any other push that changes `docs/site/` is deployed by `deploy.yml`.
 
@@ -123,7 +149,7 @@ Largest zones that day, from `zones.csv`:
 
 ## Status
 
-Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. The daily job also scores each archived day against the published zones (`validation/<date>.csv`; `uv run validate.py --summary` averages them per region). Zones are ranked within their region by front strength, and `MAX_POINTS` in `regions.py` can cap advisory points per region (no cap yet); the map lists zones by rank. Thresholds are set per region in `regions.py`; `sweep.py` scores threshold combinations against the archive (preliminary results in PLAN.md). Phase 4 added the multi-sensor chlorophyll median, missing harbours and sea-route distances. Phase 5 (in progress): the chlorophyll source rule is in; next are chlorophyll fronts, sea level / eddies, wind and upwelling, currents and salinity, then per-region values once ~3 weeks of INCOIS lines are archived.
+Phase 1 of [PLAN.md](PLAN.md) is done. Phase 2 milestones 1–4, 6 and 7 are done: near-real-time chlorophyll, advisory points per zone, and a daily archive of INCOIS PFZ lines (`validation/incois/`, from the WFS layer behind the INCOIS PFZ WebGIS page). `validate.py` compares our zones with an archived day (hit rate of INCOIS line length near our zones, share of our points near INCOIS lines); first result in PLAN.md. Zones are assigned to the region of their nearest harbour. Zone outlines keep their holes. The daily job also scores each archived day against the published zones (`validation/<date>.csv`; `uv run validate.py --summary` averages them per region). Zones are ranked within their region by front strength, and `MAX_POINTS` in `regions.py` can cap advisory points per region (no cap yet); the map lists zones by rank. Thresholds are set per region in `regions.py`; `sweep.py` scores threshold combinations against the archive (preliminary results in PLAN.md). Phase 4 added the multi-sensor chlorophyll median, missing harbours and sea-route distances. Phase 5 added the chlorophyll source rule, chlorophyll fronts, sea level / eddies, wind and upwelling, currents and salinity; its final per-region values wait for ~3 weeks of INCOIS lines. Phase 6 added weekly AIS ship traffic from Global Fishing Watch (zone and point columns, shipping-lane warnings, the effort check). Phase 7 made the page interactive (harbour selection, zone panel, layer switches, week slider). Next is phase 8: routes from harbour to point that cross shipping lanes short, with warnings along the way.
 
 ## References
 

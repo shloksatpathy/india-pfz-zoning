@@ -166,7 +166,7 @@ Constraints:
 
 ### Phase 6: Traffic data
 
-Sources to check first (2026-11-24 search, not yet tried):
+Sources checked (2026-11-24):
 
 | Source | What | Latency | Access |
 |---|---|---|---|
@@ -174,7 +174,10 @@ Sources to check first (2026-11-24 search, not yet tried):
 | Global Fishing Watch 4Wings, fishing effort dataset | Apparent fishing hours on a grid | ~72 – 96 h | Same token |
 | AISStream.io | Live AIS messages over a WebSocket, filtered by bounding box | Live | Free API key |
 
-Open questions for milestone 1: AISStream coverage off India (terrestrial receivers, may be sparse offshore); whether GFW's AIS provider change (to Kpler) affects latency; grid resolution and request limits.
+Results of the check (milestone 1):
+- **GFW works and is the source.** Presence dataset `public-global-presence:v5.0`, effort `public-global-fishing-effort:v5.0`. Newest day 2026-11-20 on 2026-11-24 (4 days). `date-range` end is exclusive. LOW resolution = 0.1° cells, `lat`/`lon` are cell centres (a box inside one cell returned the cells centred on both sides). `group-by` has no vessel type; `filters[0]=vessel_type in (...)` works. Types with data: cargo, fishing, gear (net and buoy beacons), passenger, seismic_vessel, carrier, bunker, insufficient_data; `tanker`, `support`, `other` return nothing, and ~42% of hours have no type. One week over the download box: 498,000 vessel-hours in all, cargo 159,000, gear 79,000, fishing 22,500, passenger 14,400. Each query takes 1 – 3 s; back-to-back queries sometimes fail, and the API refuses Python's default User-Agent (403).
+- **Fishing vessels with AIS are almost only on the west coast.** Fishing presence inside India's EEZ per week: Karnataka & Kerala 7,020 h, Maharashtra & Goa 3,257, Gujarat 369, Lakshadweep 263, east coast and Andaman under 20 each; the busiest fishing cells are off Sri Lanka. Effort follows the same pattern. Cargo is everywhere (Gujarat 34,000 h, Andhra Pradesh 10,600, Odisha & West Bengal 6,700).
+- **AISStream is not usable off India.** Over the whole download box: 2 positions in 3 minutes, 1 vessel in 10 minutes (off Chennai); Singapore in the same session: 19 vessels in 30 s. Its WebSocket handshake also needs IPv4 and a long open timeout from here. No live vessel layer (milestone 7.3 dropped).
 
 Steps:
 - `fetch.fetch_traffic`: weekly GFW presence over the download box for the 7 days ending on the SST date, split into fishing and merchant (cargo + tanker + passenger), and fishing hours. `data/traffic_<SST date>.nc`.
@@ -183,10 +186,10 @@ Steps:
 - Page: two overlays (fishing, merchant) with a legend; popups show the new values; a "shipping lane" note on points with `in_lane`.
 
 Milestones:
-1. Try GFW and AISStream over the download box: coverage, resolution, latency, sizes. Pick the sources and record them here.
-2. `fetch_traffic` and the traffic grids for the 8 published weeks; maps in `docs/images/`.
-3. Zone and point traffic columns; effort validation over the 8 weeks.
-4. Overlays, popups and lane note on the page; weekly job fetches traffic (token as a secret).
+1. ~~Try GFW and AISStream over the download box.~~ Done 2026-11-24, results above: GFW for weekly grids, AISStream dropped.
+2. ~~`fetch_traffic` and the traffic grids for the 8 published weeks.~~ Done 2026-11-24. `fetch.fetch_traffic` finds the newest GFW day on or before the SST date (daily query in a 1° box off Mumbai), then downloads the 7 days ending on it for fishing presence, merchant presence (cargo + passenger) and fishing effort: `data/traffic_<SST date>.json` (~360 KB, cells as [lat, lon, hours]). Token from `GFW_TOKEN` (local `.env`, repository secret for the weekly job). Merchant hours are steady at 173,000 – 180,000 per week; fishing presence 21,000 – 39,000. Maps: `docs/images/lanes_2026-11-20.png`, `docs/images/fishing_2026-11-20.png`.
+3. ~~Zone and point traffic columns; effort check over the 8 weeks.~~ Done 2026-11-24. `pfz.load_traffic` puts the cells on a 0.1° grid; each SST pixel takes its cell's hours, and a zone sums them by area share. New columns: zones `fishing_hours`, `merchant_hours`, `effort_hours` (vessel-hours in the zone that week); points `merchant_hours` (the point's 0.1° cell) and `in_lane` (≥ `LANE_HOURS` = 6 h; the 90th percentile of EEZ cells is 6 – 7 h every week and those cells hold 85 – 87% of merchant hours). Existing columns unchanged in all 8 weeks. 385 of 1,411 points (27%) lie in a lane: Gujarat 154 / 339, Maharashtra & Goa 74 / 151, Karnataka & Kerala 67 / 193, Tamil Nadu 43 / 164, Odisha & West Bengal 34 / 313, Andhra Pradesh 6 / 180. Zones with any fishing presence 32%, any effort 19%. Effort check (`pfz.effort_check` → `validation/effort.csv`): per region, share of AIS fishing effort inside zones with points against their share of the sea within 300 km of the region's harbours. Over the 8 weeks: Karnataka & Kerala (9,000 h effort per week, the only region with much) zones hold 5.3% of effort on 3.4% of the sea, ratio 1.56, but 0.22 – 5.68 week to week; Maharashtra & Goa (1,850 h) 0.36; Gujarat (610 h) 0.22; Tamil Nadu (635 h) 0.16; other regions have too little effort to say. So AIS fishing effort does not confirm the zones outside Karnataka & Kerala; AIS boats there are mostly larger trawlers, and effort may follow habit and port distance more than fronts.
+4. ~~Overlays, popups and lane note on the page; weekly job fetches traffic.~~ Done 2026-11-24. Layers "Fishing vessels (AIS)" (`fishing.png`, all cells, orange) and "Shipping lanes (AIS)" (`merchant.png`, only cells ≥ 6 h, pink to purple; showing every cell covered most of the sea) with legends, 1 – 100+ h on a log scale. Zone panel: fishing and merchant vessel-hours; point popup and list: "shipping lane" note with the hours. The dates line names the AIS week; the footer names GFW and says small boats without AIS are missing. 2026-11-20 site data 0.96 MB. `weekly.yml` passes `GFW_TOKEN` from the repository secret.
 
 ### Phase 7: Interactive region view
 
@@ -200,7 +203,7 @@ Milestones:
 Milestones:
 1. ~~Region / harbour selection and side panel.~~ Done 2026-11-24. `index.json` carries `harbours` (name → lat, lon, region). Header: date, region and a harbour select grouped by region; choosing a harbour sets its region, puts a marker on it, and lists only zones with points from that harbour, nearest first, with only that harbour's points. Clicking a zone on the map or in the list outlines it, fits the map and shows its values and points in the panel ("← All zones" goes back); a point opens its popup. Wide screens (≥ 900 px): map left, 420 px panel right, full height; phones keep map above, list below. Regions are chosen in the select only (their boxes overlap, so they are not drawn as clickable areas).
 2. ~~Layer toggles and time slider.~~ Done 2026-11-24. A "Layers" box in the panel replaces Leaflet's layer control: zones, advisory points (still from zoom 7), SST, chlorophyll, eddies, EEZ boundary; grids sit in their own map pane under the zones. New `eddy.png` per date (`pfz.write_eddy_overlay`): local sea level anomaly, blue −15 to red +15 cm, written at a quarter of the overlay resolution since sea level is 0.25° (24 KB; 2026-11-20 site data 0.90 MB), with a legend when shown. A week slider in the header replaces the date select; region and harbour stay selected across weeks. Traffic and live vessel toggles come with phases 6 and 7.3.
-3. `traffic_live.py`, its workflow and the vessel layer (only if milestone 6.1 finds usable live coverage; otherwise the weekly grid stays the only traffic).
+3. ~~`traffic_live.py`, its workflow and the vessel layer.~~ Dropped 2026-11-24: AISStream sees about one vessel per 10 minutes off India (milestone 6.1); the weekly GFW grid stays the only traffic.
 
 ### Phase 8: Guidance
 
@@ -224,6 +227,7 @@ Milestones:
 - **Lakshadweep:** INCOIS lines there follow very weak SST gradients and low or cloud-masked chlorophyll; our method finds no matching zones.
 - **INCOIS comparison is one-sided:** INCOIS lines are drawn by analysts and may skip valid fronts, so low precision is not only our error. It also cannot confirm parameters INCOIS does not use (eddies, wind, currents, salinity).
 - **Altimetry near the coast:** sea level in shallow gulfs (Khambhat, Kutch) shows strong strips that are likely errors, so eddy labels there are unreliable.
+- **AIS traffic is a lower bound:** most small Indian fishing boats carry no AIS, so fishing traffic shows almost only west coast trawlers; GFW data are ~4 days old and ~42% of vessel-hours have no vessel type.
 - **Coarse extra parameters:** sea level, currents, salinity and wind are 0.25 – 0.33° (~28 – 37 km), coarser than the 0.02° fronts; they describe a zone's surroundings, not its edges, and are missing within ~25 km of the coast for altimetry and SMAP.
 
 ## Later

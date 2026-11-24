@@ -68,6 +68,7 @@ if __name__ == "__main__":
         fetch.fetch(sst_date)
         for name in fetch.EXTRA:
             fetch.fetch_extra(name, sst_date)
+        fetch.fetch_traffic(sst_date)
         chl_date, chl_days = choose_chl(sst_date, chl_date)
         pfz.run(sst_date, chl_date, chl_days)
     write_index("outputs")

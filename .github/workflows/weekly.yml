@@ -25,6 +25,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Run pipeline for the newest SST day
         # PFEG ERDDAP sometimes answers 403 to GitHub runners; try 3 times
+        env:
+          GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
         run: |
           for i in 1 2 3; do
             uv run run.py last && exit 0

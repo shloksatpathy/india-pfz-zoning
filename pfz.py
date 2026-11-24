@@ -15,7 +15,7 @@ from scipy import ndimage
 
 import sea
 from harbours import HARBOURS
-from regions import MAX_POINTS, REGIONS, THRESHOLDS
+from regions import BBOX, MAX_POINTS, REGIONS, THRESHOLDS
 
 DILATE = 2  # pixels, joins nearby front pixels into one zone
 MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
@@ -33,6 +33,9 @@ EDDY_CM = 5  # local anomaly at or beyond ±5 cm: cyclonic / anticyclonic eddy
 EDDY_EDGE_MIN = 0.14  # cm/km sea level gradient, ~90th percentile in the 8 published weeks
 SSS_FRONT_MIN = 0.05  # PSU/km salinity gradient (3-day SMAP mean), ~90th percentile in the 8 published weeks
 KNOTS = 1.94384  # per m/s
+TRAFFIC_CELL = 0.1  # degrees, GFW 4Wings LOW resolution
+LANE_HOURS = 6  # merchant vessel-hours per week in a 0.1° cell: ~90th percentile of EEZ cells, 85% of merchant hours
+TRAFFIC_RANGE = (0, 2)  # log10 vessel-hours per cell per week, traffic overlay colour scale (1 - 100 h)
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -56,6 +59,21 @@ def daily_chl(sst, days):
         for sensor, d in days
     ]
     return xr.concat(layers, "layer").median("layer")
+
+
+def load_traffic(sst_date):
+    """Weekly vessel-hours per 0.1° cell (fishing, merchant presence; fishing effort) and the days covered."""
+    traffic = json.load(open(f"data/traffic_{sst_date}.json"))
+    lat_min, lat_max, lon_min, lon_max = BBOX
+    lat = np.round(np.arange(lat_min, lat_max + TRAFFIC_CELL / 2, TRAFFIC_CELL), 1)
+    lon = np.round(np.arange(lon_min, lon_max + TRAFFIC_CELL / 2, TRAFFIC_CELL), 1)
+    grids = {}
+    for name in ["fishing", "merchant", "effort"]:
+        grid = np.zeros((len(lat), len(lon)))
+        for la, lo, hours in traffic[name]:
+            grid[round((la - lat_min) / TRAFFIC_CELL), round((lo - lon_min) / TRAFFIC_CELL)] += hours
+        grids[name] = xr.DataArray(grid, coords={"latitude": lat, "longitude": lon}, dims=["latitude", "longitude"])
+    return grids, traffic["dates"]
 
 
 def load_extra(sst_date, sst):
@@ -87,6 +105,10 @@ def load_extra(sst_date, sst):
     grids["sss"] = sss.interp_like(sst)
     grids["sss_front"] = (gradient(sss) >= SSS_FRONT_MIN).where(np.isfinite(sss.values)).interp_like(sst)
     dates["sss"] = str(ds.time.values[-1])[:10]
+
+    traffic, dates["traffic"] = load_traffic(sst_date)
+    for name, grid in traffic.items():
+        grids[f"{name}_hours"] = grid.interp_like(sst, method="nearest")  # hours of the 0.1° cell the pixel lies in
     return grids, dates
 
 
@@ -273,9 +295,11 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
     upwelling = zone_mean(extra["upwelling_m_day"].values, labels, ids)
     sss = zone_mean(extra["sss"].values, labels, ids)
     sss_front = zone_mean(extra["sss_front"].values, labels, ids)
+    cell_share = np.gradient(lat)[:, None] * np.gradient(lon)[None, :] / TRAFFIC_CELL ** 2  # pixel's share of a 0.1° cell
+    traffic = {name: ndimage.sum(extra[f"{name}_hours"].values * cell_share, labels, ids) for name in ["fishing", "merchant", "effort"]}
 
     zones = []
-    for label, area, s, c, g, fkm, cfkm, sla, edge, w, up, sal, sfront in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge, wind, upwelling, sss, sss_front):
+    for label, area, s, c, g, fkm, cfkm, sla, edge, w, up, sal, sfront, fish_h, merch_h, effort_h in zip(ids, areas, mean_sst, mean_chl, mean_grad, front_km, chl_front_km, sla_cm, eddy_edge, wind, upwelling, sss, sss_front, traffic["fishing"], traffic["merchant"], traffic["effort"]):
         rows, cols = np.nonzero(labels[boxes[label - 1]] == label)
         plat = lat[boxes[label - 1][0]][rows]
         plon = lon[boxes[label - 1][1]][cols]
@@ -283,11 +307,14 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
         points = []
         for plat_, plon_ in tile_points(plat, plon):
             kn, to = current(point_value(extra["u_current"], plat_, plon_), point_value(extra["v_current"], plat_, plon_))
+            merchant = point_value(extra["merchant_hours"], plat_, plon_)
             points.append({
                 **advisory(plat_, plon_, depth),
                 "wind_ms": rounded(point_value(extra["wind_ms"], plat_, plon_), 1),
                 "current_kn": kn,
                 "current_to": to,
+                "merchant_hours": round(merchant),
+                "in_lane": merchant >= LANE_HOURS,
             })
         closest = min(points, key=lambda pt: pt["distance_km"])
         if closest["distance_km"] > MAX_HARBOUR_KM:
@@ -313,6 +340,9 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
             "upwelling_m_day": rounded(up, 2),
             "sss": rounded(sal, 2),
             "sss_front": rounded(sfront, 2),
+            "fishing_hours": round(float(fish_h), 1),
+            "merchant_hours": round(float(merch_h), 1),
+            "effort_hours": round(float(effort_h), 1),
             "depth_m": int(depth.sel(latitude=zlat, longitude=zlon, method="nearest")),
             "harbour": closest["harbour"],
             "bearing": closest["bearing"],
@@ -320,6 +350,7 @@ def describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra, max_points=MA
             "advisory": closest["advisory"],
             "geometry": outline(labels, label, boxes[label - 1], lat, lon),
             "all_points": points,
+            "label": label,
         })
 
     return rank_zones(zones, strength, max_points)
@@ -342,8 +373,8 @@ def rank_zones(zones, score, max_points):
     return zones
 
 
-FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "sss", "sss_front", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
-POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "current_kn", "current_to", "advisory"]
+FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "sss", "sss_front", "fishing_hours", "merchant_hours", "effort_hours", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "current_kn", "current_to", "merchant_hours", "in_lane", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
@@ -430,11 +461,11 @@ def plot_check(out, date, sst, grad, grad_min, chl, pfz):
     plt.close(fig)
 
 
-def mercator_rows(da):
+def mercator_rows(da, step=OVERLAY_STEP):
     lat = da.latitude.values
     y = np.log(np.tan(np.pi / 4 + np.deg2rad(lat) / 2))
-    target = np.rad2deg(2 * np.arctan(np.exp(np.linspace(y[0], y[-1], len(lat) // OVERLAY_STEP))) - np.pi / 2)
-    return da.sel(latitude=target, method="nearest").isel(longitude=slice(None, None, OVERLAY_STEP))
+    target = np.rad2deg(2 * np.arctan(np.exp(np.linspace(y[0], y[-1], len(lat) // step))) - np.pi / 2)
+    return da.sel(latitude=target, method="nearest").isel(longitude=slice(None, None, step))
 
 
 def write_overlays(out, sst, chl, sla_cm):
@@ -447,6 +478,49 @@ def write_overlays(out, sst, chl, sla_cm):
 def write_eddy_overlay(out, sla_cm):
     # sea level is 0.25°, so a quarter of the overlay resolution loses nothing
     plt.imsave(out / "eddy.png", mercator_rows(sla_cm).values[::-4, ::4], cmap="RdBu_r", vmin=-SLA_RANGE, vmax=SLA_RANGE)
+
+
+def write_traffic_overlays(out, traffic):
+    """fishing.png: log10 vessel-hours per 0.1° cell, cells without traffic transparent;
+    merchant.png: the same for shipping lanes only (cells with at least LANE_HOURS)."""
+    for name, cmap, low in [("fishing", "Oranges", 0), ("merchant", "RdPu", LANE_HOURS)]:
+        grid = mercator_rows(traffic[name], 1)
+        log_hours = np.log10(grid.where(grid >= max(low, 1)).values[::-1])
+        plt.imsave(out / f"{name}.png", log_hours, cmap=cmap, vmin=TRAFFIC_RANGE[0], vmax=TRAFFIC_RANGE[1])
+
+
+def effort_check(sst_date, sst, ocean, labels, zones, effort):
+    """Per region: share of AIS fishing effort inside zones with advisory points against their share of the sea
+    (ocean within MAX_HARBOUR_KM of the region's harbours); written to validation/effort.csv."""
+    lon, lat = np.meshgrid(sst.longitude.values, sst.latitude.values)
+    nearest, km = sea.nearest(lat, lon)
+    region_of = np.array([h[2] for h in HARBOURS.values()])[nearest]
+    cell_km2 = (np.gradient(sst.latitude.values)[:, None] * KM_PER_DEG) * (np.gradient(sst.longitude.values)[None, :] * KM_PER_DEG * np.cos(np.deg2rad(lat)))
+    effort_px = effort.values * np.gradient(sst.latitude.values)[:, None] * np.gradient(sst.longitude.values)[None, :] / TRAFFIC_CELL ** 2
+    rows = []
+    for name in REGIONS:
+        sea_px = ocean.values & (region_of == name) & (km <= MAX_HARBOUR_KM)
+        zone_px = np.isin(labels, [z["label"] for z in zones if z["region"] == name and z["points"] > 0])
+        sea_km2, zone_km2 = cell_km2[sea_px].sum(), cell_km2[zone_px].sum()
+        sea_h, zone_h = effort_px[sea_px].sum(), effort_px[zone_px].sum()
+        rows.append({
+            "date": sst_date,
+            "region": name,
+            "sea_km2": round(sea_km2),
+            "zone_km2": round(zone_km2),
+            "effort_hours": round(sea_h, 1),
+            "zone_effort_hours": round(zone_h, 1),
+            "area_share": round(zone_km2 / sea_km2, 3),
+            "effort_share": round(zone_h / sea_h, 3) if sea_h else None,
+            "ratio": round(zone_h / sea_h / (zone_km2 / sea_km2), 2) if sea_h and zone_km2 else None,
+        })
+    path = Path("validation/effort.csv")
+    old = [r for r in csv.DictReader(open(path))] if path.exists() else []
+    rows = sorted([r for r in old if r["date"] != sst_date] + rows, key=lambda r: (r["date"], list(REGIONS).index(r["region"])))
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def run(sst_date, chl_date, chl_days=None):
@@ -465,6 +539,8 @@ def run(sst_date, chl_date, chl_days=None):
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
     write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates)
     write_overlays(out, sst, chl, extra["sla_cm"])
+    write_traffic_overlays(out, load_traffic(sst_date)[0])
+    effort_check(sst_date, sst, ocean, labels, zones, extra["effort_hours"])
     for name in REGIONS:
         plot_region(out, sst_date, name, sst, chl, labels, zones)
 

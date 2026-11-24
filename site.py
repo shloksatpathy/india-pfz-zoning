@@ -4,7 +4,7 @@ from pathlib import Path
 from run import write_index
 
 WEEKS = 8
-FILES = ["zones.geojson", "zones.csv", "points.csv", "sst.png", "chl.png", "eddy.png"]
+FILES = ["zones.geojson", "zones.csv", "points.csv", "sst.png", "chl.png", "eddy.png", "fishing.png", "merchant.png"]
 SITE = Path("docs/site")
 
 
