@@ -100,7 +100,7 @@ Single steps (weekly composite) take both dates: `uv run fetch.py 2026-11-17 202
 Outputs in `outputs/<date>/`:
 - `check.png`: whole-India SST fronts, chlorophyll, and PFZ mask
 - `<region>.png`: per-region map with numbered zones
-- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms`, current `current_kn` flowing to `current_to`, merchant ship-hours last week in the point's 0.1° cell `merchant_hours` and `in_lane` (≥ 6 h, a shipping lane), and advisory text such as `Veraval: SW, 45 km, depth 60 m`
+- `points.csv`: advisory points, one per ~30 km tile of each zone (at least one per zone), each inside the zone with its own nearest harbour, bearing, distance, depth, wind speed `wind_ms`, current `current_kn` flowing to `current_to`, merchant ship-hours last week in the point's 0.1° cell `merchant_hours` and `in_lane` (≥ 6 h, a shipping lane), the length of the sea route from the harbour `route_km` and how much of it runs through shipping lanes `lane_km`, the distance to the edge of India's EEZ `eez_km`, and advisory text such as `Veraval: SW, 45 km, depth 60 m`
 - `zones.csv`: one row per zone (region, rank within region, an interior lat/lon, area_km2, sst, chl, mean front gradient `grad`, front length `front_km`, `strength` = grad × front_km, chlorophyll front length `chl_front_km` (log10 chlorophyll gradient ≥ 0.02 per km), local sea level anomaly `sla_cm` with its `eddy` label (cyclonic ≤ −5 cm, anticyclonic ≥ +5 cm) the share of the zone on an eddy edge `eddy_edge`, mean wind `wind_ms` and Ekman upwelling `upwelling_m_day`, mean salinity `sss` and the share on a salinity front `sss_front`, AIS vessel-hours in the zone last week `fishing_hours`, `merchant_hours` and fishing effort `effort_hours`, depth_m, number of points, and the advisory of the point closest to its harbour)
 - `zones.geojson`: zone outlines as polygons (with holes) plus the advisory points (`kind: "point"`)
 - `sst.png`, `chl.png`, `eddy.png`: map overlays (no axes, land transparent, rows resampled to Web Mercator) covering the full download box; `eddy.png` is the local sea level anomaly
@@ -120,6 +120,10 @@ python -m http.server -d docs/site
 The page has a week slider, region and harbour selection (a harbour lists only its zones, nearest first), a side panel for the selected zone, and layer switches for zones, advisory points, SST, chlorophyll, eddies, fishing vessels and shipping lanes. Points in a shipping lane carry a warning.
 
 ![Shipping lanes and zones, 2026-11-20](docs/images/lanes_2026-11-20.png)
+
+Choosing an advisory point draws its route from the harbour. Routes come from `sea.lane_routes`: shortest path over the ocean grid where each km inside a shipping lane counts double, so routes cross lanes short (this halves the km spent in lanes; 95% of routes are at most 12% longer). The route box gives distance, first heading and travel time at a chosen boat speed, with warnings for shipping lanes, the EEZ edge (within 20 km), strong wind, the fishing ban period and stale chlorophyll. The GeoJSON carries each route line.
+
+![Route from Jakhau with warnings, 2026-11-20](docs/images/route_2026-11-20.png)
 
 A weekly GitHub Actions workflow processes the newest SST day, rebuilds `docs/site/`, commits it and deploys it to GitHub Pages. Any other push that changes `docs/site/` is deployed by `deploy.yml`.
 

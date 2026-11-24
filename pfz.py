@@ -191,6 +191,27 @@ def eez_mask(sst):
     return sst.copy(data=inside.reshape(lon.shape))
 
 
+def add_routes(zones, sst, eez, merchant):
+    """Per advisory point: lane-penalised route from its harbour (line, km, km in lanes) and distance to the EEZ edge."""
+    lat, lon = sea.edges()[:2]
+    lane = (merchant.interp(latitude=lat, longitude=lon, method="nearest") >= LANE_HOURS).values
+    points = [pt for z in zones for pt in z["point_list"]]
+    routes = sea.lane_routes([(pt["harbour"], pt["lat"], pt["lon"]) for pt in points], lane)
+    # km from each pixel to the nearest sea pixel outside the EEZ (a neighbour's waters or the high seas)
+    step = np.gradient(sst.latitude.values).mean() * KM_PER_DEG
+    outside, _ = ndimage.label(sst.notnull().values & ~eez.values)
+    # keep the waters that reach the edge of the download box; coastal slivers outside the EEZ polygon do not
+    rim = np.unique(np.concatenate([outside[0], outside[-1], outside[:, 0], outside[:, -1]]))
+    outside = np.isin(outside, rim[rim > 0])
+    edge_km = ndimage.distance_transform_edt(~outside, sampling=(step, step * np.cos(np.deg2rad(sst.latitude.values.mean()))))
+    edge_km = sst.copy(data=edge_km)
+    for pt, (line, km, lane_km) in zip(points, routes):
+        pt["route_km"] = round(km)
+        pt["lane_km"] = round(lane_km, 1)
+        pt["eez_km"] = round(float(edge_km.sel(latitude=pt["lat"], longitude=pt["lon"], method="nearest")))
+        pt["route"] = line
+
+
 def label_zones(pfz, ocean):
     mask = ndimage.binary_dilation(pfz.values, iterations=DILATE) & ocean.values
     labels, n = ndimage.label(mask)
@@ -374,7 +395,7 @@ def rank_zones(zones, score, max_points):
 
 
 FIELDS = ["id", "region", "rank", "lat", "lon", "area_km2", "sst", "chl", "grad", "front_km", "chl_front_km", "sla_cm", "eddy", "eddy_edge", "wind_ms", "upwelling_m_day", "sss", "sss_front", "fishing_hours", "merchant_hours", "effort_hours", "strength", "depth_m", "points", "harbour", "bearing", "distance_km", "advisory"]
-POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "current_kn", "current_to", "merchant_hours", "in_lane", "advisory"]
+POINT_FIELDS = ["zone_id", "point", "region", "rank", "lat", "lon", "depth_m", "harbour", "bearing", "distance_km", "wind_ms", "current_kn", "current_to", "merchant_hours", "in_lane", "route_km", "lane_km", "eez_km", "advisory"]
 
 
 def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
@@ -385,7 +406,7 @@ def write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates):
         writer.writeheader()
         writer.writerows(rows)
     with open(out / "points.csv", "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=POINT_FIELDS)
+        writer = csv.DictWriter(f, fieldnames=POINT_FIELDS, extrasaction="ignore")  # the route line goes to the GeoJSON only
         writer.writeheader()
         writer.writerows(points)
 
@@ -529,17 +550,20 @@ def run(sst_date, chl_date, chl_days=None):
 
     sst, chl, depth = load(sst_date, chl_date, chl_days)
     extra, extra_dates = load_extra(sst_date, sst)
-    ocean = sst.notnull() & eez_mask(sst)
+    eez = eez_mask(sst)
+    ocean = sst.notnull() & eez
     grad = gradient(sst)
     grad_min, chl_min = threshold_grids(sst)
     pfz = (grad >= grad_min) & (chl >= chl_min) & ocean
     labels, ids = label_zones(pfz, ocean)
     zones = describe_zones(sst, chl, depth, grad, pfz, labels, ids, extra)
+    traffic = load_traffic(sst_date)[0]
+    add_routes(zones, sst, eez, traffic["merchant"])
 
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
     write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates)
     write_overlays(out, sst, chl, extra["sla_cm"])
-    write_traffic_overlays(out, load_traffic(sst_date)[0])
+    write_traffic_overlays(out, traffic)
     effort_check(sst_date, sst, ocean, labels, zones, extra["effort_hours"])
     for name in REGIONS:
         plot_region(out, sst_date, name, sst, chl, labels, zones)

@@ -47,6 +47,11 @@
   .time { display: flex; align-items: center; gap: 8px; min-height: 44px; }
   .time input { width: 200px; }
   .layers { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 4px 0; }
+  .route { margin: 8px 0; padding: 8px 12px; border: 2px solid var(--accent); border-radius: 6px; }
+  .route p { margin: 0 0 4px; }
+  .route input { width: 64px; font-size: 16px; min-height: 36px; }
+  #warnings li { padding: 4px 0; min-height: 0; cursor: default; border: none; color: #b02a37; }
+  @media (prefers-color-scheme: dark) { #warnings li { color: #ff8a8a; } }
   .ramp { display: inline-block; width: 120px; height: 12px; vertical-align: -1px; border-radius: 3px; }
 </style>
 </head>
@@ -88,6 +93,11 @@
   </div>
   <div id="zoneView" hidden>
     <button class="back" id="back">← All zones</button>
+    <div id="pointView" class="route" hidden>
+      <p id="routeText"></p>
+      <label class="toggle">Boat speed <input type="number" id="speed" value="8" min="1" max="30" step="1" aria-label="Boat speed in knots"> knots</label>
+      <ul id="warnings"></ul>
+    </div>
     <p class="detail" id="zoneDetail"></p>
     <ul id="zonePoints"></ul>
   </div>
@@ -100,6 +110,12 @@ const STALE_DAYS = 10;  // warn when chlorophyll is this much older than SST
 const CHL_RANGE = "Chlorophyll 0.03 – 10 mg/m³";
 const SENSORS = { n20: "NOAA-20", npp: "S-NPP", s3a: "Sentinel-3A", s3b: "Sentinel-3B" };
 const STRONG_WIND = 10;  // m/s, ~20 knots
+const EEZ_WARN_KM = 20;  // warn when a point is this close to the edge of India's EEZ
+const KM_PER_NM = 1.852;
+// annual fishing ban (month-day ranges): east coast incl. Andaman, west coast incl. Lakshadweep
+const EAST = ["Tamil Nadu & Puducherry", "Andhra Pradesh", "Odisha & West Bengal", "Andaman & Nicobar"];
+const BAN = { east: ["04-15", "05-31", "15 April – 31 May"], west: ["06-01", "07-31", "1 June – 31 July"] };
+const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 const TRAFFIC_BOUNDS = [[5.95, 65.95], [24.55, 94.55]];  // outer edges of the 0.1° traffic cells (centres 6.0 – 24.5, 66.0 – 94.5)
 
 const map = L.map("map");
@@ -129,10 +145,13 @@ const zoneLayer = L.geoJSON(null, {
   onEachFeature: (f, layer) => layer.on("click", () => selectZone(f)),
 }).addTo(map);
 const harbourMarker = L.marker([0, 0]);
+const routeLine = L.polyline([], { color: "#0b6e99", weight: 4, dashArray: "8 6" });
+const routeStart = L.circleMarker([0, 0], { radius: 6, color: "#0b6e99", weight: 3, fillColor: "#fff", fillOpacity: 1 });
+let route = null;  // selected advisory point feature
 const pointLayer = L.geoJSON(null, {
   filter: f => f.properties.kind === "point",
   pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: 1 }),
-  onEachFeature: (f, layer) => layer.bindPopup(pointPopup(f.properties)),
+  onEachFeature: (f, layer) => layer.bindPopup(pointPopup(f.properties)).on("click", () => selectPoint(f)),
 });
 function showPoints() {
   if (shown.has(pointLayer) && map.getZoom() >= POINT_ZOOM) pointLayer.addTo(map); else pointLayer.remove();
@@ -217,7 +236,7 @@ function pointItem(pt) {
   item.innerHTML = `<b>${q.advisory}</b><small> · wind ${num(q.wind_ms, "m/s")} · ${currentText(q).toLowerCase()}</small>` +
     (q.wind_ms !== null && q.wind_ms >= STRONG_WIND ? ` <span class="wind">strong wind</span>` : "") +
     (q.in_lane ? ` <span class="wind">shipping lane</span>` : "");
-  item.onclick = () => focusPoint(pt);
+  item.onclick = () => selectPoint(pt);
   return item;
 }
 
@@ -225,18 +244,72 @@ function toMap() {
   if (window.innerWidth < 900) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function focusPoint(pt) {
+function heading(a, b) {
+  const [p1, p2] = [a[0] * Math.PI / 180, b[0] * Math.PI / 180];
+  const dl = (b[1] - a[1]) * Math.PI / 180;
+  const deg = Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) * 180 / Math.PI;
+  return COMPASS[Math.floor(((deg + 360) % 360 + 11.25) / 22.5) % 16];
+}
+
+function warnings(q) {
+  const list = [];
+  if (q.lane_km > 0) list.push(`Route runs ${q.lane_km} km through shipping lanes: keep watch and cross them at right angles.`);
+  if (q.in_lane) list.push(`The point lies in a shipping lane (${q.merchant_hours} merchant ship-hours last week).`);
+  if (q.eez_km < EEZ_WARN_KM) list.push(`${q.eez_km} km from the edge of India's EEZ: do not cross into neighbouring waters.`);
+  if (q.wind_ms !== null && q.wind_ms >= STRONG_WIND) list.push(`Strong wind (${q.wind_ms} m/s): check the INCOIS ocean state forecast before going out.`);
+  const [from, to, text] = BAN[EAST.includes(q.region) ? "east" : "west"];
+  const today = new Date().toISOString().slice(5, 10);
+  if (today >= from && today <= to) list.push(`Fishing ban period on this coast (${text}).`);
+  const entry = index.dates[dateSlider.value];
+  const lag = (new Date(entry.sst_date) - new Date(entry.chl_date)) / 86400000;
+  if (lag > STALE_DAYS) list.push(`Chlorophyll is ${lag} days older than SST: the zone may have moved.`);
+  return list;
+}
+
+function showRoute() {
+  const q = route.properties;
+  const knots = Number(document.getElementById("speed").value);
+  const hours = q.route_km / KM_PER_NM / knots;
+  document.getElementById("routeText").innerHTML =
+    `<b>${q.advisory}</b><br>Route from ${q.harbour}: ${q.route_km} km (${Math.round(q.route_km / KM_PER_NM)} nautical miles), ` +
+    `first heading ${heading(q.route[0], q.route[1] || [q.lat, q.lon])}, about ${hours < 1 ? Math.round(hours * 60) + " min" : hours.toFixed(1) + " h"} at ${knots} knots. ` +
+    `Wind ${num(q.wind_ms, "m/s")} · ${currentText(q)}.`;
+  const ul = document.getElementById("warnings");
+  ul.innerHTML = "";
+  for (const w of warnings(q)) {
+    const li = document.createElement("li");
+    li.textContent = "⚠ " + w;
+    ul.appendChild(li);
+  }
+  if (!ul.children.length) ul.innerHTML = "<li>No warnings.</li>";
+}
+
+function selectPoint(pt) {
   if (selected === null || pt.properties.zone_id !== selected.properties.id) {
     selectZone(features.find(f => f.properties.kind !== "point" && f.properties.id === pt.properties.zone_id));
   }
-  const layer = pointLayer.getLayers().find(l => l.feature === pt);
-  map.setView(layer.getLatLng(), 9);
+  route = pt;
+  const q = pt.properties;
+  const [hlat, hlon] = index.harbours[q.harbour];
+  routeLine.setLatLngs([[hlat, hlon], ...q.route]).addTo(map);
+  routeStart.setLatLng([hlat, hlon]).bindTooltip(q.harbour).addTo(map);
+  map.fitBounds(routeLine.getBounds(), { maxZoom: 10, padding: [30, 30] });
   pointLayer.addTo(map);
-  layer.openPopup();
+  pointLayer.getLayers().find(l => l.feature === pt).openPopup();
+  document.getElementById("pointView").hidden = false;
+  showRoute();
   toMap();
 }
 
+function clearRoute() {
+  route = null;
+  routeLine.remove();
+  routeStart.remove();
+  document.getElementById("pointView").hidden = true;
+}
+
 function selectZone(zone) {
+  clearRoute();
   selected = zone;
   zoneLayer.setStyle(zoneLayer.options.style);
   const layer = zoneLayer.getLayers().find(l => l.feature === zone);
@@ -251,6 +324,7 @@ function selectZone(zone) {
 }
 
 function closeZone() {
+  clearRoute();
   selected = null;
   zoneLayer.setStyle(zoneLayer.options.style);
   document.getElementById("listView").hidden = false;
@@ -400,6 +474,7 @@ async function start() {
   regionSelect.onchange = zoomToRegion;
   harbourSelect.onchange = zoomToHarbour;
   document.getElementById("back").onclick = closeZone;
+  document.getElementById("speed").oninput = () => { if (route) showRoute(); };
   showAll.onchange = () => {
     zoneLayer.clearLayers().addData(features);
     closeZone();
