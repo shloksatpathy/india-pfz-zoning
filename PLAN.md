@@ -199,7 +199,7 @@ Milestones:
 
 Milestones:
 1. ~~Region / harbour selection and side panel.~~ Done 2026-11-24. `index.json` carries `harbours` (name → lat, lon, region). Header: date, region and a harbour select grouped by region; choosing a harbour sets its region, puts a marker on it, and lists only zones with points from that harbour, nearest first, with only that harbour's points. Clicking a zone on the map or in the list outlines it, fits the map and shows its values and points in the panel ("← All zones" goes back); a point opens its popup. Wide screens (≥ 900 px): map left, 420 px panel right, full height; phones keep map above, list below. Regions are chosen in the select only (their boxes overlap, so they are not drawn as clickable areas).
-2. Layer toggles and time slider.
+2. ~~Layer toggles and time slider.~~ Done 2026-11-24. A "Layers" box in the panel replaces Leaflet's layer control: zones, advisory points (still from zoom 7), SST, chlorophyll, eddies, EEZ boundary; grids sit in their own map pane under the zones. New `eddy.png` per date (`pfz.write_eddy_overlay`): local sea level anomaly, blue −15 to red +15 cm, written at a quarter of the overlay resolution since sea level is 0.25° (24 KB; 2026-11-20 site data 0.90 MB), with a legend when shown. A week slider in the header replaces the date select; region and harbour stay selected across weeks. Traffic and live vessel toggles come with phases 6 and 7.3.
 3. `traffic_live.py`, its workflow and the vessel layer (only if milestone 6.1 finds usable live coverage; otherwise the weekly grid stays the only traffic).
 
 ### Phase 8: Guidance

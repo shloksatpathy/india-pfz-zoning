@@ -22,6 +22,7 @@ MIN_PIXELS = 50  # zones smaller than this (~240 km²) are dropped
 KM_PER_DEG = 111.32
 SST_RANGE = (26, 32)  # °C, overlay colour scale (web/index.html legend uses the same)
 LOG_CHL_RANGE = (-1.5, 1)  # log10 mg/m³, overlay colour scale
+SLA_RANGE = 15  # ±cm, eddy overlay colour scale (web/index.html legend uses the same)
 OVERLAY_STEP = 2  # overlay keeps every 2nd pixel
 POINT_TILE_KM = 30  # one advisory point per tile of this size
 MIN_TILE_PIXELS = 20  # ~100 km²; smaller tiles get no point, except a zone's largest tile
@@ -436,10 +437,16 @@ def mercator_rows(da):
     return da.sel(latitude=target, method="nearest").isel(longitude=slice(None, None, OVERLAY_STEP))
 
 
-def write_overlays(out, sst, chl):
+def write_overlays(out, sst, chl, sla_cm):
     plt.imsave(out / "sst.png", mercator_rows(sst).values[::-1], cmap="RdYlBu_r", vmin=SST_RANGE[0], vmax=SST_RANGE[1])
     log_chl = np.log10(mercator_rows(chl).values[::-1])
     plt.imsave(out / "chl.png", log_chl, cmap="viridis", vmin=LOG_CHL_RANGE[0], vmax=LOG_CHL_RANGE[1])
+    write_eddy_overlay(out, sla_cm)
+
+
+def write_eddy_overlay(out, sla_cm):
+    # sea level is 0.25°, so a quarter of the overlay resolution loses nothing
+    plt.imsave(out / "eddy.png", mercator_rows(sla_cm).values[::-4, ::4], cmap="RdBu_r", vmin=-SLA_RANGE, vmax=SLA_RANGE)
 
 
 def run(sst_date, chl_date, chl_days=None):
@@ -457,7 +464,7 @@ def run(sst_date, chl_date, chl_days=None):
 
     plot_check(out, sst_date, sst, grad, grad_min, chl, pfz)
     write_tables(out, zones, sst_date, chl_date, chl_days, extra_dates)
-    write_overlays(out, sst, chl)
+    write_overlays(out, sst, chl, extra["sla_cm"])
     for name in REGIONS:
         plot_region(out, sst_date, name, sst, chl, labels, zones)
 

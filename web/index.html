@@ -43,12 +43,16 @@
   .wind { color: #b02a37; font-weight: 600; }
   @media (prefers-color-scheme: dark) { .wind { color: #ff8a8a; } }
   .empty { padding: 16px 4px; color: var(--muted); }
+  .time { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .time input { width: 200px; }
+  .layers { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 4px 0; }
+  .ramp { display: inline-block; width: 120px; height: 12px; vertical-align: -1px; border-radius: 3px; }
 </style>
 </head>
 <body>
 <header>
   <h1>Potential Fishing Zones</h1>
-  <select id="date" aria-label="Date"></select>
+  <label class="time"><input type="range" id="date" min="0" step="1" aria-label="Week"><span id="dateLabel"></span></label>
   <select id="region" aria-label="Region"><option value="">All India</option></select>
   <select id="harbour" aria-label="Harbour"><option value="">Any harbour</option></select>
 </header>
@@ -57,6 +61,12 @@
 <main>
   <p class="bar" id="dates"></p>
   <p class="warn" id="stale" hidden></p>
+  <fieldset class="layers" id="layers">
+    <legend>Layers</legend>
+  </fieldset>
+  <p class="legend" id="eddyLegend" hidden>Sea level vs surroundings:
+    <span class="ramp" style="background: linear-gradient(to right, #053061, #f7f7f7, #67001f)"></span>
+    −15 … +15 cm · below −5 cyclonic eddy, above +5 anticyclonic</p>
   <div class="bar">
     <div class="legend">
       Chlorophyll (mg/m³):
@@ -92,7 +102,7 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
 }).addTo(map);
 
-const dateSelect = document.getElementById("date");
+const dateSlider = document.getElementById("date");
 const regionSelect = document.getElementById("region");
 const harbourSelect = document.getElementById("harbour");
 const list = document.getElementById("list");
@@ -118,18 +128,24 @@ const pointLayer = L.geoJSON(null, {
   pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: 1 }),
   onEachFeature: (f, layer) => layer.bindPopup(pointPopup(f.properties)),
 });
-map.on("zoomend", () => {
-  if (map.getZoom() >= POINT_ZOOM) pointLayer.addTo(map); else pointLayer.remove();
-});
-const sstLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
-const chlLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7 });
+function showPoints() {
+  if (shown.has(pointLayer) && map.getZoom() >= POINT_ZOOM) pointLayer.addTo(map); else pointLayer.remove();
+}
+map.on("zoomend", showPoints);
+map.createPane("grids").style.zIndex = 350;  // under the zones
+const sstLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7, pane: "grids" });
+const chlLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.7, pane: "grids" });
+const eddyLayer = L.imageOverlay("", [[0, 0], [0, 0]], { opacity: 0.6, pane: "grids" });
 const eezLayer = L.geoJSON(null, { style: { color: "#555", weight: 1, dashArray: "4 4", fill: false } });
-L.control.layers(null, {
-  "Zones": zoneLayer,
-  [SST_RANGE]: sstLayer,
-  [CHL_RANGE]: chlLayer,
-  "EEZ boundary": eezLayer,
-}, { collapsed: true }).addTo(map);
+const LAYERS = [
+  ["Zones", zoneLayer, true],
+  ["Advisory points (zoom in)", pointLayer, true],
+  [SST_RANGE, sstLayer, false],
+  [CHL_RANGE, chlLayer, false],
+  ["Eddies (sea level)", eddyLayer, false],
+  ["EEZ boundary", eezLayer, false],
+];
+const shown = new Set([zoneLayer, pointLayer]);
 
 let index;
 let features = [];
@@ -294,7 +310,7 @@ function zoomToHarbour() {
 }
 
 async function loadDate() {
-  const date = dateSelect.value;
+  const date = index.dates[dateSlider.value].date;
   const entry = index.dates.find(d => d.date === date);
   const days = entry.chl_days.map(d => d[1]).sort();
   const sensors = [...new Set(entry.chl_days.map(d => SENSORS[d[0]]))].join(", ");
@@ -312,6 +328,7 @@ async function loadDate() {
   pointLayer.clearLayers().addData(geojson);
   sstLayer.setUrl(`outputs/${date}/sst.png`).setBounds(index.bounds);
   chlLayer.setUrl(`outputs/${date}/chl.png`).setBounds(index.bounds);
+  eddyLayer.setUrl(`outputs/${date}/eddy.png`).setBounds(index.bounds);
   document.getElementById("downloads").innerHTML =
     `Download: <a href="outputs/${date}/zones.csv" download>Zones CSV</a> · <a href="outputs/${date}/points.csv" download>Points CSV</a> · <a href="outputs/${date}/zones.geojson" download>GeoJSON</a>`;
   closeZone();
@@ -319,8 +336,34 @@ async function loadDate() {
 
 async function start() {
   index = await (await fetch("outputs/index.json")).json();
-  for (const d of [...index.dates].reverse()) {
-    dateSelect.add(new Option(`${d.date} (${d.zones} zones)`, d.date));
+  dateSlider.max = index.dates.length - 1;
+  dateSlider.value = index.dates.length - 1;
+  const showDate = () => {
+    const d = index.dates[dateSlider.value];
+    document.getElementById("dateLabel").textContent = `${d.date} (${d.zones} zones)`;
+  };
+  showDate();
+  dateSlider.oninput = showDate;
+  const fieldset = document.getElementById("layers");
+  for (const [name, layer, on] of LAYERS) {
+    const label = document.createElement("label");
+    label.className = "toggle";
+    label.innerHTML = `<input type="checkbox"${on ? " checked" : ""}> ${name}`;
+    label.firstChild.onchange = async e => {
+      if (e.target.checked) shown.add(layer); else shown.delete(layer);
+      if (layer === pointLayer) {
+        showPoints();
+      } else if (e.target.checked) {
+        layer.addTo(map);
+      } else {
+        layer.remove();
+      }
+      if (layer === eddyLayer) document.getElementById("eddyLegend").hidden = !e.target.checked;
+      if (layer === eezLayer && eezLayer.getLayers().length === 0) {
+        eezLayer.addData(await (await fetch("india_eez.geojson")).json());
+      }
+    };
+    fieldset.appendChild(label);
   }
   for (const name of Object.keys(index.regions)) {
     regionSelect.add(new Option(name, name));
@@ -331,7 +374,7 @@ async function start() {
     }
     harbourSelect.appendChild(group);
   }
-  dateSelect.onchange = loadDate;
+  dateSlider.onchange = loadDate;
   regionSelect.onchange = zoomToRegion;
   harbourSelect.onchange = zoomToHarbour;
   document.getElementById("back").onclick = closeZone;
@@ -340,11 +383,6 @@ async function start() {
     closeZone();
   };
   map.fitBounds(index.bounds);
-  map.on("overlayadd", async e => {
-    if (e.layer === eezLayer && eezLayer.getLayers().length === 0) {
-      eezLayer.addData(await (await fetch("india_eez.geojson")).json());
-    }
-  });
   await loadDate();
 }
 
