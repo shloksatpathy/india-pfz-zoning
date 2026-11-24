@@ -150,6 +150,70 @@ How the new parameters are used (decided 2026-11-23): zones are still found from
    All within ±0.03 of the current score on 3 days, as expected since INCOIS lines use SST and chlorophyll only; eddies lower precision slightly at cap 5. Best per region now: Gujarat 0.03 / 0.3, `x_chl_front`, cap 20 (hit 0.88, precision 0.30); other regions keep `grad`. The choice waits for step 7.
 7. Final per-region thresholds, cap and ranking score; site rebuilt.
 
+## Phases 6 – 8: Ship traffic and a guidance interface
+
+Goal: show ship traffic around a selected region next to the PFZ zones, and turn the page into a guidance tool. A fisher picks a harbour or region, sees the zones, the vessels and shipping lanes around them, and gets a route to a chosen point with warnings.
+
+Split:
+- **Phase 6, traffic data:** gridded weekly traffic (fishing vs merchant) per region, as a map layer and as zone and point attributes; check whether fishing effort concentrates in our zones.
+- **Phase 7, interactive region view:** select a region or zone, side panel, layer toggles, time slider, near-live vessel positions.
+- **Phase 8, guidance:** route from harbour to point by sea that avoids shipping lanes, with distance, heading, time, and the warnings along the way.
+
+Constraints:
+- The site is static on GitHub Pages with no server. Live data comes from scheduled GitHub Actions that write snapshot files; API keys stay in repository secrets, never in the page.
+- AIS shows only vessels that carry a transponder. Most small Indian fishing boats do not, so traffic is a lower bound, mostly larger fishing vessels and merchant ships. The page must say this.
+- Keep per-date site data under ~1 MB (traffic grids as PNG overlays, not vectors).
+
+### Phase 6: Traffic data
+
+Sources to check first (2026-11-24 search, not yet tried):
+
+| Source | What | Latency | Access |
+|---|---|---|---|
+| Global Fishing Watch 4Wings API, `public-global-presence:latest` | Hourly AIS positions binned to a grid, filterable by vessel type (fishing, cargo, tanker, passenger …) | ~72 – 96 h | Free API token, non-commercial only |
+| Global Fishing Watch 4Wings, fishing effort dataset | Apparent fishing hours on a grid | ~72 – 96 h | Same token |
+| AISStream.io | Live AIS messages over a WebSocket, filtered by bounding box | Live | Free API key |
+
+Open questions for milestone 1: AISStream coverage off India (terrestrial receivers, may be sparse offshore); whether GFW's AIS provider change (to Kpler) affects latency; grid resolution and request limits.
+
+Steps:
+- `fetch.fetch_traffic`: weekly GFW presence over the download box for the 7 days ending on the SST date, split into fishing and merchant (cargo + tanker + passenger), and fishing hours. `data/traffic_<SST date>.nc`.
+- `pfz.py`: new zone columns `fishing_hours`, `merchant_hours`; point columns `merchant_hours` within ~5 km and `in_lane` (merchant density above its 90th percentile, as for fronts).
+- Validation: share of fishing hours inside our zones vs inside an equal area of random sea in the same region, per week. Unlike INCOIS lines this is where boats actually fished, so it is a second check; write it to `validation/effort.csv`.
+- Page: two overlays (fishing, merchant) with a legend; popups show the new values; a "shipping lane" note on points with `in_lane`.
+
+Milestones:
+1. Try GFW and AISStream over the download box: coverage, resolution, latency, sizes. Pick the sources and record them here.
+2. `fetch_traffic` and the traffic grids for the 8 published weeks; maps in `docs/images/`.
+3. Zone and point traffic columns; effort validation over the 8 weeks.
+4. Overlays, popups and lane note on the page; weekly job fetches traffic (token as a secret).
+
+### Phase 7: Interactive region view
+
+- **Select:** a region list and a harbour search; clicking a region or zone zooms to it and opens a side panel instead of a popup.
+- **Side panel:** zones in the region ranked, with their ocean values and traffic; clicking a zone highlights it and its points.
+- **Layers:** toggles for zones, points, SST, chlorophyll, fishing traffic, merchant traffic, eddies, live vessels.
+- **Time slider:** step through the 8 published weeks, zones and traffic together.
+- **Near-live vessels:** `traffic_live.py` in a scheduled Action (every ~3 h) collects AIS positions in the download box for a few minutes and writes `docs/site/live.json` (latest position, type, speed, course per vessel; no names). Vessel markers coloured by type with a heading arrow and the snapshot time; older than 6 h is shown as stale.
+- Stays in `web/index.html` with Leaflet; no build step.
+
+Milestones:
+1. Region / harbour selection and side panel.
+2. Layer toggles and time slider.
+3. `traffic_live.py`, its workflow and the vessel layer (only if milestone 6.1 finds usable live coverage; otherwise the weekly grid stays the only traffic).
+
+### Phase 8: Guidance
+
+- **Route:** pick a harbour and an advisory point; `sea.py` Dijkstra gets a cost layer that adds a penalty for merchant lanes, so the route crosses them short and straight. Shown as a line with distance (km, nautical miles), initial heading, and time at a chosen speed (default 8 kn).
+- **Along the route:** wind and current at the point, lane crossings, EEZ edge, fishing ban period, strong wind, stale chlorophyll; a short summary on top of the panel.
+- Routes are precomputed per point to its nearest harbour (and the next 2 nearest) in `pfz.py`, so the page does no routing; stays within the data budget or loads per region on demand.
+- Printable / shareable advisory per point (URL with region, zone and point).
+
+Milestones:
+1. Lane-penalised routes in `sea.py`; check that routes stay at sea and lanes are crossed short.
+2. Routes and warnings in the outputs and the side panel.
+3. Shareable per-point links and a print view.
+
 ## Known limitations
 
 - **Monsoon cloud cover (Jun – Sep):** satellite chlorophyll has large gaps; expect few or no zones. MUR SST is gap-filled, so fronts still appear.
