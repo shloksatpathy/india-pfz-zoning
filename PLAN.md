@@ -213,7 +213,7 @@ Milestones:
 - Printable / shareable advisory per point (URL with region, zone and point).
 
 Milestones:
-1. Lane-penalised routes in `sea.py`; check that routes stay at sea and lanes are crossed short.
+1. ~~Lane-penalised routes in `sea.py`.~~ Done 2026-11-24. `sea.edges` holds the 0.04° ocean grid's 8-connected edges (shared with the nearest-harbour distances, unchanged: with no penalty the routes reproduce `distance_km` within 0.5 km). `sea.lane_routes` runs Dijkstra from each harbour with edge cost km × (1 + `LANE_PENALTY` × share of the edge in lane cells), lanes = merchant 0.1° cells ≥ `LANE_HOURS`, and walks the predecessors back from each point; lines are simplified (Douglas-Peucker, `SIMPLIFY_DEG` = 0.01°). Penalty on 2026-11-20's 212 points: 0 → 4,586 lane km in all, 1 → 2,061 (95th percentile detour 11.6%, max 37%), 2 → 1,631 (27.5%, 97%), 5 → 1,496 (38%, 154%), so `LANE_PENALTY` = 1. 44% of routes still touch a lane (harbour or point in one). Land check over the 8 weeks (1,411 routes, segments sampled every 0.01°, 3+ samples on land): none with 0.01° simplification; 0.02° cut ~1 km of land at Chennai harbour, Paradip and Porbandar. Diagonal steps touch land cells only at corners. Routes go to each point's nearest harbour only, not the next 2 (the harbour list already shows a harbour's own points).
 2. Routes and warnings in the outputs and the side panel.
 3. Shareable per-point links and a print view.
 
